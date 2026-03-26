@@ -1,0 +1,16 @@
+{
+  "id": "odoo-tools",
+  "name": "Odoo ERP Tools + Channel",
+  "version": "2.0.0",
+  "description": "通用 Odoo ERP API 工具 + AI Skill + 可配置消息渠道（Discuss、Helpdesk 等），支持 Legacy JSON-RPC 和 API Key 双认证",
+  "skills": ["./skills"],
+  "channels": ["odoo"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  },
+  "clawdbot": {
+    "extensions": ["./index.ts"]
+  }
+}
