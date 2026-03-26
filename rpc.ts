@@ -1,5 +1,5 @@
 /**
- * Shared Odoo RPC layer for odooclaw plugins.
+ * Shared Odoo RPC layer for odoo-tools plugin.
  *
  * Supports two authentication modes:
  * 1. **Legacy JSON-RPC** — `db` + `uid` + `password` via `/jsonrpc` endpoint
@@ -55,6 +55,8 @@ export type AuthMode = "apikey" | "legacy";
 
 /** Determine which auth mode to use based on config fields. */
 export function resolveAuthMode(cfg: OdooConfig): AuthMode {
+  // If we have full legacy credentials (including apiKey as password), prefer legacy
+  if (cfg.db && cfg.uid && (cfg.apiKey || cfg.password)) return "legacy";
   if (cfg.apiKey) return "apikey";
   return "legacy";
 }
@@ -71,6 +73,14 @@ export function validateAuth(cfg: OdooConfig): { ok: true } | { ok: false; error
   if (cfg.uid == null) return { ok: false, error: "uid is required for legacy auth" };
   if (!cfg.password) return { ok: false, error: "password is required for legacy auth" };
   return { ok: true };
+}
+
+/* ── Debug logger (set externally) ── */
+
+let _rpcLogger: { info: (msg: string) => void; error: (msg: string) => void } | null = null;
+
+export function setRpcLogger(logger: { info: (msg: string) => void; error: (msg: string) => void } | null) {
+  _rpcLogger = logger;
 }
 
 /* ── JSON-RPC id counter ── */
@@ -90,33 +100,42 @@ async function odooRpcLegacy(
   args: any[] = [],
   kwargs: Record<string, any> = {},
 ): Promise<any> {
+  const currentRpcId = ++rpcId;
   const body = JSON.stringify({
     jsonrpc: "2.0",
     method: "call",
-    id: ++rpcId,
+    id: currentRpcId,
     params: {
       service: "object",
       method: "execute_kw",
-      args: [cfg.db, cfg.uid, cfg.password, model, method, args],
-      kwargs,
+      args: [cfg.db, cfg.uid, cfg.apiKey || cfg.password, model, method, args, kwargs],
     },
   });
 
+  const baseUrl = cfg.url.trim().replace(/\/+$/, "");
+  _rpcLogger?.info(`[odoo_rpc] legacy #${currentRpcId} POST ${baseUrl}/jsonrpc → ${model}.${method}`);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
 
   try {
-    const resp = await fetch(`${cfg.url}/jsonrpc`, {
+    const resp = await fetch(`${baseUrl}/jsonrpc`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "X-Openerp-Session-Id": "",
+      },
       body,
       signal: controller.signal,
     });
 
     const json = (await resp.json()) as any;
     if (json.error) {
-      throw new Error(`Odoo RPC error: ${json.error.data?.message || json.error.message}`);
+      const errMsg = json.error.data?.message || json.error.message;
+      _rpcLogger?.error(`[odoo_rpc] legacy #${currentRpcId} ERROR: ${errMsg}`);
+      throw new Error(`Odoo RPC error: ${errMsg}`);
     }
+    _rpcLogger?.info(`[odoo_rpc] legacy #${currentRpcId} OK (result type: ${typeof json.result}, isArray: ${Array.isArray(json.result)}, length: ${Array.isArray(json.result) ? json.result.length : 'n/a'})`);
     return json.result;
   } finally {
     clearTimeout(timeout);
@@ -140,7 +159,8 @@ async function odooRpcApiKey(
   args: any[] = [],
   kwargs: Record<string, any> = {},
 ): Promise<any> {
-  const endpoint = `${cfg.url}/api/${model}/${method}`;
+  const baseUrl = cfg.url.trim().replace(/\/+$/, "");
+  const endpoint = `${baseUrl}/api/${model}/${method}`;
 
   const body = JSON.stringify({ args, kwargs });
 
@@ -152,13 +172,20 @@ async function odooRpcApiKey(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Accept: "application/json",
         Authorization: `Bearer ${cfg.apiKey}`,
+        // Fix for "Session expired (invalid CSRF token)":
+        // Explicitly telling Odoo to ignore session-based CSRF.
+        "X-Openerp-Session-Id": "",
       },
       body,
       signal: controller.signal,
     });
 
     if (!resp.ok) {
+      if (resp.status === 401) {
+        throw new Error(`Odoo API Unauthorized (401): Invalid API Key or missing permissions.`);
+      }
       const text = await resp.text().catch(() => "");
       throw new Error(`Odoo API error (${resp.status}): ${text || resp.statusText}`);
     }
@@ -177,8 +204,8 @@ async function odooRpcApiKey(
  * Call an Odoo model method.
  *
  * Automatically selects the appropriate transport:
- * - **API Key** (`cfg.apiKey` set) → `/api/{model}/{method}` with Bearer token
- * - **Legacy** (otherwise) → `/jsonrpc` with `execute_kw`
+ * - **Legacy (Preferred)** — Uses `/jsonrpc` with `execute_kw`. If `cfg.apiKey` is present, it's used as the password.
+ * - **REST (Fallback)** — Uses `/api/{model}/{method}` with Bearer token (only if `db` or `uid` are missing but `apiKey` is present).
  */
 export async function odooRpc(
   cfg: OdooConfig,
@@ -188,8 +215,18 @@ export async function odooRpc(
   kwargs: Record<string, any> = {},
 ): Promise<any> {
   const mode = resolveAuthMode(cfg);
+  _rpcLogger?.info(`[odoo_rpc] odooRpc called: mode=${mode} model=${model} method=${method}`);
   if (mode === "apikey") {
-    return await odooRpcApiKey(cfg, model, method, args, kwargs);
+    try {
+      return await odooRpcApiKey(cfg, model, method, args, kwargs);
+    } catch (err: any) {
+      if (err.message.includes("(404)")) {
+        throw new Error(
+          `Odoo REST API not found (404). For standard Odoo, please provide 'db' and 'uid' to use JSON-RPC with your API Key.`,
+        );
+      }
+      throw err;
+    }
   }
   return await odooRpcLegacy(cfg, model, method, args, kwargs);
 }

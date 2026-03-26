@@ -6,6 +6,7 @@ import { getCfg } from "./config.ts";
 import { registerOdooApiTool } from "./tools/odoo-api.ts";
 import { odooPlugin, registerPollingService } from "./channel.ts";
 import { getProvider } from "./providers/registry.ts";
+import { setRpcLogger } from "./rpc.ts";
 
 const plugin = {
   id: "odoo-tools",
@@ -15,6 +16,11 @@ const plugin = {
 
   register(api: ClawdbotPluginApi) {
     setOdooRuntime(api.runtime);
+
+    // ── Wire up RPC debug logger ──
+    if (api.logger) {
+      setRpcLogger({ info: (m) => api.logger!.info(m), error: (m) => api.logger!.error(m) });
+    }
 
     // ── Skill: register odoo_api tool ──
     registerOdooApiTool(api);

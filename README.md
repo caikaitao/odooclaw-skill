@@ -23,7 +23,7 @@
 ## 📦 项目结构
 
 ```
-odooclaw-skill/
+odoo-tools/
 ├── index.ts                  # 插件入口 — 注册 tool + channel + polling
 ├── rpc.ts                    # Odoo RPC（Legacy + API Key 双认证）
 ├── config.ts                 # 配置读取与校验
@@ -45,15 +45,15 @@ odooclaw-skill/
 
 ## 🚀 安装
 
-将 `odooclaw-skill` 目录放入 OpenClaw 扩展目录：
+将 `odoo-tools` 目录放入 OpenClaw 扩展目录：
 
 ```bash
 # 全局安装
 mkdir -p ~/.openclaw/extensions
-cp -r odooclaw-skill ~/.openclaw/extensions/
+cp -r odoo-tools ~/.openclaw/extensions/
 
 # 或符号链接（开发模式）
-ln -s /path/to/odooclaw-skill ~/.openclaw/extensions/odooclaw-skill
+ln -s /path/to/odoo-tools ~/.openclaw/extensions/odoo-tools
 ```
 
 > 💡 合并后只需安装**一个**插件，无需额外安装 `odooclaw-shared` 或 `odooclaw-channel`。
@@ -79,7 +79,9 @@ ln -s /path/to/odooclaw-skill ~/.openclaw/extensions/odooclaw-skill
 }
 ```
 
-### API Key 认证（Odoo 17+，推荐）
+### API Key 认证（Odoo 17+）
+
+推荐方式。在标准 Odoo 中，API Key 需配合 `db` 和 `uid` 使用（作为密码替代品）。
 
 ```json
 {
@@ -87,6 +89,8 @@ ln -s /path/to/odooclaw-skill ~/.openclaw/extensions/odooclaw-skill
     "odoo": {
       "enabled": true,
       "url": "https://your-odoo.com",
+      "db": "your-database",
+      "uid": 2,
       "apiKey": "your-odoo-api-key",
       "botPartnerId": 3
     }
@@ -94,7 +98,7 @@ ln -s /path/to/odooclaw-skill ~/.openclaw/extensions/odooclaw-skill
 }
 ```
 
-> 💡 当 `apiKey` 存在时自动使用 API Key 模式，`db`、`uid`、`password` 可省略。
+> 💡 只有当你的 Odoo 安装了特定的 REST API 模块时，才可以在省略 `db` 和 `uid` 的情况下仅靠 `apiKey` 工作。
 
 ### 使用其他 Provider
 
@@ -136,7 +140,7 @@ ln -s /path/to/odooclaw-skill ~/.openclaw/extensions/odooclaw-skill
 | `ODOO_DB` | `db` | Odoo 数据库名称 |
 | `ODOO_UID` | `uid` | Odoo 用户 ID |
 | `ODOO_PASSWORD` | `password` | Odoo 用户密码 |
-| `ODOO_API_KEY` | `apiKey` | Odoo API Key |
+| `ODOO_API_KEY` | `apiKey` | API Key (在标准 Odoo 下仍需设置 `ODOO_DB` 和 `ODOO_UID`) |
 | `ODOO_BOT_PARTNER_ID` | `botPartnerId` | Bot 的 `res.partner` ID |
 | `ODOO_PROVIDER` | `provider` | Channel Provider |
 | `ODOO_WEBHOOK_SECRET` | `webhookSecret` | Webhook 密钥 |
@@ -145,6 +149,8 @@ ln -s /path/to/odooclaw-skill ~/.openclaw/extensions/odooclaw-skill
 
 ```bash
 export ODOO_URL="https://your-odoo.com"
+export ODOO_DB="your_db"
+export ODOO_UID=2
 export ODOO_API_KEY="your-api-key"
 export ODOO_BOT_PARTNER_ID=3
 openclaw start
@@ -220,6 +226,15 @@ export const helpdeskProvider: ChannelProvider = {
   shouldRespond() { return true; },
 };
 ```
+
+## 🔌 Odoo 侧配合插件 (推荐)
+
+为了获得最佳体验，建议在 Odoo 侧安装配套的 `openclaw_bot` 模块。该模块提供：
+- **主动消息推送**：支持将 Odoo 消息实时推送至 OpenClaw（需配合 Webhook 扩展，开发中）。
+- **优化回复接口**：插件默认调用 Odoo 端的 `openclaw_post_bot_message` 方法，该方法能更好地处理 Bot 身份和富文本渲染。
+- **自动初始化**：自动创建 Bot 所需的 `res.partner` 并配置好相关权限。
+
+> 💡 **注意**：如果不安装 Odoo 侧插件，本插件将尝试调用 Odoo 标准的 `message_post` 方法，这可能导致回复者头像不正确或富文本样式丢失。
 
 ## 📊 消息流程
 

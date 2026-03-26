@@ -38,16 +38,17 @@ function formatInlineMarkdown(text: string): string {
 }
 
 function getNoticeStyle(text: string): string | null {
-  if (/^(✅|🎉|🟢|Success|Completed|Created|Confirmed)/.test(text)) {
+  const lower = text.toLowerCase();
+  if (/^(✅|🎉|🟢)/.test(text) || /success|completed|created|confirmed|成功|完成|已创建|已确认/i.test(lower)) {
     return "background:#ecfdf3;border-left:4px solid #16a34a;";
   }
-  if (/^(⚠️|⚠|Reminder|Notice|Warning)/.test(text)) {
+  if (/^(⚠️|⚠)/.test(text) || /reminder|notice|warning|提醒|注意|警告/i.test(lower)) {
     return "background:#fffbeb;border-left:4px solid #d97706;";
   }
-  if (/^(❌|Error|Failure|Exception|Error)/.test(text)) {
+  if (/^(❌)/.test(text) || /error|failure|exception|错误|失败|异常/i.test(lower)) {
     return "background:#fef2f2;border-left:4px solid #dc2626;";
   }
-  if (/^(ℹ️|Tip|Description|Information)/.test(text)) {
+  if (/^(ℹ️)/.test(text) || /tip|description|information|提示|说明|信息/i.test(lower)) {
     return "background:#eff6ff;border-left:4px solid #2563eb;";
   }
   return null;
@@ -57,14 +58,17 @@ function guessEmojiTitle(text: string): { emoji: string; title: string } | null 
   const first = text.split(/\r?\n/).map((s) => s.trim()).find(Boolean) || "";
   if (!first) return null;
 
-  if (/error/i.test(first)) return { emoji: "❌", title: first.replace(/^(❌)/, "").trim() || "Processing failed" };
-  if (/warning/i.test(first)) return { emoji: "⚠️", title: first.replace(/^(⚠️|⚠)/, "").trim() || "Please note" };
-  if (/purchase|rfq|po/i.test(text)) return { emoji: "📦", title: first };
-  if (/sale order|\bso\b/i.test(text)) return { emoji: "🧾", title: first };
-  if (/invoice|bill/i.test(text)) return { emoji: "💰", title: first };
-  if (/partner|supplier|vendor/i.test(text)) return { emoji: "👤", title: first };
-  if (/success/i.test(first)) return { emoji: "✅", title: first };
-  if (/list|search|show/i.test(first)) return { emoji: "🔎", title: first };
+  const lowerText = text.toLowerCase();
+  const lowerFirst = first.toLowerCase();
+
+  if (/error|错误/i.test(lowerFirst)) return { emoji: "❌", title: first.replace(/^(❌)/, "").trim() };
+  if (/warning|警告/i.test(lowerFirst)) return { emoji: "⚠️", title: first.replace(/^(⚠️|⚠)/, "").trim() };
+  if (/purchase|rfq|po|采购|订单/i.test(lowerText)) return { emoji: "📦", title: first };
+  if (/sale order|\bso\b|销售/i.test(lowerText)) return { emoji: "🧾", title: first };
+  if (/invoice|bill|发票|账单/i.test(lowerText)) return { emoji: "💰", title: first };
+  if (/partner|supplier|vendor|联系人|供应商|客户/i.test(lowerText)) return { emoji: "👤", title: first };
+  if (/success|成功/i.test(lowerFirst)) return { emoji: "✅", title: first };
+  if (/list|search|show|查询|列表|显示/i.test(lowerFirst)) return { emoji: "🔎", title: first };
   return { emoji: "✨", title: first };
 }
 
@@ -261,7 +265,7 @@ function preprocessForOdooRichText(text: string): string {
       continue;
     }
 
-    if (/^(Next|You can also|Next step|Can continue|Can execute)/.test(line)) {
+    if (/^(Next|You can also|Next step|Can continue|Can execute|下一步|你也可以|后续操作)/i.test(line)) {
       out.push(`### 👉 ${line}`);
       i += 1;
       continue;
@@ -355,10 +359,13 @@ export function formatOdooRichText(text: string): string {
 
 /**
  * Strip HTML tags and decode entities from Odoo message body.
- * Also removes `@BotName` mention patterns (must start with `@`).
+ * Also removes `@BotName` mention patterns.
  */
 export function cleanOdooBody(html: string): string {
+  // 1. Remove all HTML tags
   let text = (html || "").replace(/<[^>]+>/g, " ");
+
+  // 2. Decode standard entities
   text = text
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
@@ -366,8 +373,12 @@ export function cleanOdooBody(html: string): string {
     .replace(/&nbsp;/g, " ")
     .replace(/&#39;/g, "'")
     .replace(/&quot;/g, '"')
-    .replace(/&#\d+;/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  return text.replace(/@[\w\u4e00-\u9fa5\-_. ]+\b/g, "").trim();
+    .replace(/&#\d+;/g, "");
+
+  // 3. Remove @mentions (consistent with Odoo plugin's _strip_mention)
+  // Remove patterns like "@Bot Name "
+  text = text.replace(/@[\w\u4e00-\u9fa5\-_. ]+\s*/g, "");
+
+  // 4. Final cleanup
+  return text.replace(/\s+/g, " ").trim();
 }

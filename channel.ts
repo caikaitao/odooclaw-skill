@@ -119,7 +119,7 @@ async function handleInboundMessage(
     channel: provider.label,
     from: fromLabel,
     timestamp: msg.date ? Date.parse(msg.date) : undefined,
-    body: `${bodyText}\n[odoo message id: ${msg.id} channel: ${channelId}]`,
+    body: bodyText,
     chatType,
     sender: { name: authorName, id: authorId },
   });

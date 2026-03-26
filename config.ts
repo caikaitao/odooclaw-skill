@@ -37,14 +37,20 @@ export function getCfg(api: ClawdbotPluginApi): OdooConfig | null {
     webhookSecret: process.env.ODOO_WEBHOOK_SECRET || cfgFromPlugin.webhookSecret,
   };
 
+  // Ensure url and botPartnerId are present
   if (!cfg.url || !cfg.botPartnerId) return null;
 
-  // API Key mode — only need url + apiKey + botPartnerId
-  if (cfg.apiKey) {
+  // For standard Odoo (even with API Key), we still need db and uid for JSON-RPC.
+  // We only fallback to REST if db/uid are missing but apiKey is present.
+  if (!cfg.db || !cfg.uid) {
+    if (cfg.apiKey) return cfg as OdooConfig; // Potential REST mode
+    return null;
+  }
+
+  // Legacy or JSON-RPC with API Key
+  if (cfg.password || cfg.apiKey) {
     return cfg as OdooConfig;
   }
 
-  // Legacy mode — need db + uid + password
-  if (!cfg.db || !cfg.uid || !cfg.password) return null;
-  return cfg as OdooConfig;
+  return null;
 }
