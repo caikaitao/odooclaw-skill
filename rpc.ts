@@ -119,7 +119,6 @@ async function odooRpcLegacy(
   });
 
   const baseUrl = cfg.url.trim().replace(/\/+$/, "");
-  _rpcLogger?.info(`[odoo_rpc] legacy #${currentRpcId} POST ${baseUrl}/jsonrpc → ${model}.${method} args=${JSON.stringify(args).slice(0, 300)}`);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
 
@@ -141,7 +140,6 @@ async function odooRpcLegacy(
       _rpcLogger?.error(`[odoo_rpc] legacy #${currentRpcId} ERROR: ${errMsg}`);
       throw new Error(`Odoo RPC error: ${errMsg}`);
     }
-    _rpcLogger?.info(`[odoo_rpc] legacy #${currentRpcId} OK (result type: ${typeof json.result}, isArray: ${Array.isArray(json.result)}, length: ${Array.isArray(json.result) ? json.result.length : 'n/a'})`);
     return json.result;
   } finally {
     clearTimeout(timeout);
@@ -224,13 +222,10 @@ export async function odooRpc(
 ): Promise<any> {
   const mode = resolveAuthMode(cfg);
   const hasLegacyCreds = !!(cfg.db && cfg.uid && (cfg.password || cfg.apiKey));
-  _rpcLogger?.info(`[odoo_rpc] odooRpc called: mode=${mode} model=${model} method=${method} apiCached404=${_apiEndpointUnavailable} hasLegacyCreds=${hasLegacyCreds}`);
-  console.log(`[odoo_rpc] odooRpc called: mode=${mode} model=${model} method=${method} apiCached404=${_apiEndpointUnavailable}`);
 
   if (mode === "apikey") {
     // If /api/ previously returned 404 and we have legacy credentials, skip /api/ entirely
     if (_apiEndpointUnavailable && hasLegacyCreds) {
-      _rpcLogger?.info(`[odoo_rpc] skipping /api/ (cached 404) → using legacy /jsonrpc for ${model}.${method}`);
       return await odooRpcLegacy(cfg, model, method, args, kwargs);
     }
     try {
@@ -240,12 +235,10 @@ export async function odooRpc(
       // but only when we have full legacy credentials available.
       if (err.message.includes("(404)") && hasLegacyCreds) {
         _apiEndpointUnavailable = true;
-        _rpcLogger?.info(`[odoo_rpc] /api/ returned 404 — caching and falling back to legacy /jsonrpc for ${model}.${method}`);
-        console.log(`[odoo_rpc] /api/ returned 404 — caching, will use legacy /jsonrpc from now on`);
+        _rpcLogger?.info(`[odoo_rpc] /api/ 404 — falling back to legacy /jsonrpc`);
         return await odooRpcLegacy(cfg, model, method, args, kwargs);
       }
-      _rpcLogger?.error(`[odoo_rpc] ❌ apikey call failed: ${err.message}`);
-      console.log(`[odoo_rpc] ❌ apikey call failed: ${err.message}`);
+      _rpcLogger?.error(`[odoo_rpc] apikey call failed: ${err.message}`);
       throw err;
     }
   }

@@ -79,7 +79,6 @@ async function handleInboundMessage(
 ) {
   const core = getOdooRuntime();
   const channelId = msg.channelId;
-  api.logger?.info(`odoo-channel: handleInbound start messageId=${msg.id} channelId=${channelId} provider=${provider.id}`);
 
   const isPrivateChat = channel.isPrivate;
   const authorId = String(msg.authorId?.[0] ?? "unknown");
@@ -98,7 +97,6 @@ async function handleInboundMessage(
   const agentId = resolvedRoute?.agentId || "main";
   const accountId = resolvedRoute?.accountId || "default";
   const sessionKey = `agent:${agentId}:odoo:${isPrivateChat ? "dm" : "group"}:${peerId}`;
-  api.logger?.info(`odoo-channel: HARD ROUTE sessionKey=${sessionKey} agentId=${agentId} peerId=${peerId} private=${isPrivateChat}`);
   const chatType = isPrivateChat ? "direct" : "group";
   const to = isPrivateChat ? `chat:${channelId}` : `channel:${channelId}`;
   const fromLabel = isPrivateChat ? authorName : `${channel.name || `channel-${channelId}`} / ${authorName}`;
@@ -113,7 +111,6 @@ async function handleInboundMessage(
       contextKey: `odoo:message:${channelId}:${msg.id}`,
     },
   );
-  api.logger?.info(`odoo-channel: system event enqueued messageId=${msg.id}`);
 
   const body = core.channel.reply.formatInboundEnvelope({
     channel: provider.label,
@@ -123,7 +120,6 @@ async function handleInboundMessage(
     chatType,
     sender: { name: authorName, id: authorId },
   });
-  api.logger?.info(`odoo-channel: inbound envelope built messageId=${msg.id}`);
 
   const ctxPayload = core.channel.reply.finalizeInboundContext({
     Body: body,
@@ -146,7 +142,6 @@ async function handleInboundMessage(
     OriginatingChannel: "odoo",
     OriginatingTo: to,
   });
-  api.logger?.info(`odoo-channel: inbound context finalized messageId=${msg.id}`);
 
   if (isPrivateChat) {
     const storePath = core.channel.session.resolveStorePath(api.config?.session?.store, {
@@ -161,7 +156,6 @@ async function handleInboundMessage(
         accountId: accountId,
       },
     });
-    api.logger?.info(`odoo-channel: last route updated messageId=${msg.id}`);
   }
 
   const textLimit = core.channel.text.resolveTextChunkLimit(api.config, "odoo", "default", {
@@ -173,20 +167,16 @@ async function handleInboundMessage(
     humanDelay: core.channel.reply.resolveHumanDelayConfig(api.config, agentId),
     deliver: async (payload: { text?: string }) => {
       const text = payload.text ?? "";
-      api.logger?.info(`odoo-channel: deliver invoked messageId=${msg.id} textLen=${text.length} channelId=${channelId}`);
       const chunks = core.channel.text.chunkMarkdownTextWithMode(text, textLimit, chunkMode);
       for (const chunk of chunks.length > 0 ? chunks : [text]) {
         if (!chunk) continue;
-        api.logger?.info(`odoo-channel: sending chunk messageId=${msg.id} chunkLen=${chunk.length}`);
         await provider.sendMessage(cfg, channelId, formatFn(chunk), true);
       }
-      api.logger?.info(`odoo-channel: delivered reply to ${to}`);
     },
     onError: (err: unknown, info: { kind: string }) => {
       api.logger?.error(`odoo ${info.kind} reply failed: ${String(err)}`);
     },
   });
-  api.logger?.info(`odoo-channel: dispatcher created messageId=${msg.id}`);
 
   await core.channel.reply.dispatchReplyFromConfig({
     ctx: ctxPayload,
@@ -194,7 +184,6 @@ async function handleInboundMessage(
     dispatcher,
     replyOptions,
   });
-  api.logger?.info(`odoo-channel: dispatch complete messageId=${msg.id}`);
   markDispatchIdle();
 }
 
@@ -265,10 +254,7 @@ export function registerPollingService(api: ClawdbotPluginApi) {
             lastMessageId = Math.max(lastMessageId, msg.id);
 
             if (msg.authorId?.[0] === cfg.botPartnerId) continue;
-            if (sentMessageIds.has(msg.id)) {
-              api.logger?.info(`odoo-channel: skipping tracked sent message messageId=${msg.id}`);
-              continue;
-            }
+            if (sentMessageIds.has(msg.id)) continue;
 
             const bodyText = cleanOdooBody(msg.body);
             if (!bodyText) continue;
