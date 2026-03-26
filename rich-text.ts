@@ -373,11 +373,15 @@ export function cleanOdooBody(html: string): string {
     .replace(/&nbsp;/g, " ")
     .replace(/&#39;/g, "'")
     .replace(/&quot;/g, '"')
-    .replace(/&#\d+;/g, "");
+    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCodePoint(parseInt(hex, 16)));
 
   // 3. Remove @mentions (consistent with Odoo plugin's _strip_mention)
-  // Remove patterns like "@Bot Name "
-  text = text.replace(/@[\w\u4e00-\u9fa5\-_. ]+\s*/g, "");
+  // Odoo wraps mentions in <a class="o_mail_redirect">@Name</a> — after HTML
+  // tag stripping (step 1), mentions become bare "@Name " tokens.
+  // Only strip the single @-word; do NOT consume subsequent words, otherwise
+  // pure-English messages like "@Bot hello world" get entirely eaten.
+  text = text.replace(/@[\w\-_.]+\s*/g, "");
 
   // 4. Final cleanup
   return text.replace(/\s+/g, " ").trim();

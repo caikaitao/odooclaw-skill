@@ -2,11 +2,12 @@
  * Shared Odoo RPC layer for odoo-tools plugin.
  *
  * Supports two authentication modes:
- * 1. **Legacy JSON-RPC** — `db` + `uid` + `password` via `/jsonrpc` endpoint
- * 2. **API Key** — `apiKey` via `/api/` REST endpoint (Odoo 17+, Bearer token)
+ * 1. **API Key (Preferred)** — `apiKey` via `/api/` REST endpoint (Odoo 17+, Bearer token)
+ * 2. **Legacy JSON-RPC (Fallback)** — `db` + `uid` + `password` via `/jsonrpc` endpoint
+ *    (deprecated in Odoo 19, scheduled for removal in Odoo 20)
  *
- * When `cfg.apiKey` is set the API-key path is used automatically;
- * otherwise the legacy path is used as a fallback.
+ * When `cfg.apiKey` is set the `/api/` REST path is preferred;
+ * legacy `/jsonrpc` is only used when no API key is available.
  */
 
 /* ── Validated config ── */
@@ -55,9 +56,11 @@ export type AuthMode = "apikey" | "legacy";
 
 /** Determine which auth mode to use based on config fields. */
 export function resolveAuthMode(cfg: OdooConfig): AuthMode {
-  // If we have full legacy credentials (including apiKey as password), prefer legacy
-  if (cfg.db && cfg.uid && (cfg.apiKey || cfg.password)) return "legacy";
+  // Prefer API Key auth (/api/ endpoint) when apiKey is available.
+  // /jsonrpc is deprecated in Odoo 19 and scheduled for removal in Odoo 20.
   if (cfg.apiKey) return "apikey";
+  // Fall back to legacy JSON-RPC only when password (not apiKey) is the sole credential.
+  if (cfg.db && cfg.uid && cfg.password) return "legacy";
   return "legacy";
 }
 
@@ -82,6 +85,9 @@ let _rpcLogger: { info: (msg: string) => void; error: (msg: string) => void } | 
 export function setRpcLogger(logger: { info: (msg: string) => void; error: (msg: string) => void } | null) {
   _rpcLogger = logger;
 }
+
+/* ── /api/ 404 cache: once we know /api/ is not available, skip it ── */
+let _apiEndpointUnavailable = false;
 
 /* ── JSON-RPC id counter ── */
 
@@ -113,7 +119,7 @@ async function odooRpcLegacy(
   });
 
   const baseUrl = cfg.url.trim().replace(/\/+$/, "");
-  _rpcLogger?.info(`[odoo_rpc] legacy #${currentRpcId} POST ${baseUrl}/jsonrpc → ${model}.${method}`);
+  _rpcLogger?.info(`[odoo_rpc] legacy #${currentRpcId} POST ${baseUrl}/jsonrpc → ${model}.${method} args=${JSON.stringify(args).slice(0, 300)}`);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
 
@@ -204,8 +210,10 @@ async function odooRpcApiKey(
  * Call an Odoo model method.
  *
  * Automatically selects the appropriate transport:
- * - **Legacy (Preferred)** — Uses `/jsonrpc` with `execute_kw`. If `cfg.apiKey` is present, it's used as the password.
- * - **REST (Fallback)** — Uses `/api/{model}/{method}` with Bearer token (only if `db` or `uid` are missing but `apiKey` is present).
+ * - **REST (Preferred)** — Uses `/api/{model}/{method}` with Bearer token when `apiKey` is present (Odoo 17+).
+ * - **Legacy (Fallback)** — Uses `/jsonrpc` with `execute_kw` when only `password` is available (deprecated in Odoo 19).
+ *
+ * If the REST endpoint returns 404 and legacy credentials are available, falls back to legacy automatically.
  */
 export async function odooRpc(
   cfg: OdooConfig,
@@ -215,16 +223,29 @@ export async function odooRpc(
   kwargs: Record<string, any> = {},
 ): Promise<any> {
   const mode = resolveAuthMode(cfg);
-  _rpcLogger?.info(`[odoo_rpc] odooRpc called: mode=${mode} model=${model} method=${method}`);
+  const hasLegacyCreds = !!(cfg.db && cfg.uid && (cfg.password || cfg.apiKey));
+  _rpcLogger?.info(`[odoo_rpc] odooRpc called: mode=${mode} model=${model} method=${method} apiCached404=${_apiEndpointUnavailable} hasLegacyCreds=${hasLegacyCreds}`);
+  console.log(`[odoo_rpc] odooRpc called: mode=${mode} model=${model} method=${method} apiCached404=${_apiEndpointUnavailable}`);
+
   if (mode === "apikey") {
+    // If /api/ previously returned 404 and we have legacy credentials, skip /api/ entirely
+    if (_apiEndpointUnavailable && hasLegacyCreds) {
+      _rpcLogger?.info(`[odoo_rpc] skipping /api/ (cached 404) → using legacy /jsonrpc for ${model}.${method}`);
+      return await odooRpcLegacy(cfg, model, method, args, kwargs);
+    }
     try {
       return await odooRpcApiKey(cfg, model, method, args, kwargs);
     } catch (err: any) {
-      if (err.message.includes("(404)")) {
-        throw new Error(
-          `Odoo REST API not found (404). For standard Odoo, please provide 'db' and 'uid' to use JSON-RPC with your API Key.`,
-        );
+      // Fallback to legacy JSON-RPC if /api/ returns 404 (pre-17 Odoo without REST support)
+      // but only when we have full legacy credentials available.
+      if (err.message.includes("(404)") && hasLegacyCreds) {
+        _apiEndpointUnavailable = true;
+        _rpcLogger?.info(`[odoo_rpc] /api/ returned 404 — caching and falling back to legacy /jsonrpc for ${model}.${method}`);
+        console.log(`[odoo_rpc] /api/ returned 404 — caching, will use legacy /jsonrpc from now on`);
+        return await odooRpcLegacy(cfg, model, method, args, kwargs);
       }
+      _rpcLogger?.error(`[odoo_rpc] ❌ apikey call failed: ${err.message}`);
+      console.log(`[odoo_rpc] ❌ apikey call failed: ${err.message}`);
       throw err;
     }
   }

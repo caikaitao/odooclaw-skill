@@ -30,25 +30,42 @@ export function registerOdooApiTool(api: ClawdbotPluginApi) {
     return {
       name: "odoo_api",
       label: "Odoo API",
-      description: "Call any Odoo model method via JSON-RPC or API Key. Use for search_read, create, write, unlink, button_confirm, or any other Odoo model method.",
+      description:
+        "IMPORTANT: You MUST call this tool whenever the user asks about ANY business data from Odoo ERP. " +
+        "This includes questions about: sales orders (销售订单), purchases (采购订单), inventory/stock (库存), " +
+        "invoices (发票), contacts (联系人), products (产品), employees (员工), CRM leads/opportunities. " +
+        "Trigger words: how many, count, list, find, check, show, get, 多少, 查询, 列出, 查看, 有几个, 这个月, 本月. " +
+        "DO NOT say you cannot access the system. DO NOT recommend the user to check Odoo directly. ALWAYS call this tool first. " +
+        "Example — count sales orders this month: {model:'sale.order', method:'search_count', args:[[['create_date','>=','2026-03-01'],['create_date','<','2026-04-01']]]}. " +
+        "Example — list records: {model:'sale.order', method:'search_read', args:[[]], kwargs:{fields:['name','amount_total','state'],limit:10,order:'create_date desc'}}.",
       parameters: Type.Object({
-        model: Type.String({ description: "Odoo model name, e.g. purchase.order, sale.order, res.partner, account.move, product.product" }),
-        method: Type.String({ description: "Method name, e.g. search_read, create, write, unlink, button_confirm, name_search" }),
-        args: Type.Optional(Type.Array(Type.Any(), { description: "Positional arguments. For search_read: [domain]. For create: [{ field: value }]. For write: [[ids], { field: value }]." })),
-        kwargs: Type.Optional(Type.Record(Type.String(), Type.Any(), { description: "Keyword arguments. For search_read: { fields: [...], limit: N, order: '...' }." })),
+        model: Type.String({ description: "Odoo model, e.g. sale.order, purchase.order, account.move, res.partner, product.product, stock.quant, hr.employee, crm.lead" }),
+        method: Type.String({ description: "RPC method: search_read (list records), search_count (count), create, write, unlink, name_search" }),
+        args: Type.Optional(Type.Array(Type.Any(), { description: "Positional args. For search/count: [[['field','op','value']]]. For create: [{'field':'value'}]. For write: [[ids],{'field':'value'}]" })),
+        kwargs: Type.Optional(Type.Record(Type.String(), Type.Any(), { description: "Keyword args: {fields:['name','state'], limit:10, order:'create_date desc'}" })),
       }),
       async execute(_toolCallId: string, params: any) {
+        console.log(`[odoo_api] 🚀 execute called! toolCallId=${_toolCallId} params=${JSON.stringify(params)}`);
         log?.info(`[odoo_api] 🚀 execute called! toolCallId=${_toolCallId} params=${JSON.stringify(params)}`);
 
-        const { model, method, args = [], kwargs = {} } = params as {
+        let { model, method, args = [], kwargs = {} } = params as {
           model: string;
           method: string;
           args?: any[];
           kwargs?: Record<string, any>;
         };
 
+        // Auto-fix: search methods require domain as first positional arg.
+        // If LLM passes empty args, default to [[]] (match all records).
+        const SEARCH_METHODS = ["search", "search_read", "search_count", "name_search"];
+        if (SEARCH_METHODS.includes(method) && args.length === 0) {
+          log?.info(`[odoo_api] 🔧 auto-fix: ${method} called with empty args, defaulting to domain=[]`);
+          args = [[]];
+        }
+
         const cfg = getCfg(api);
         if (!cfg) {
+          console.log("[odoo_api] ❌ getCfg returned null — Odoo not configured");
           log?.error("[odoo_api] ❌ getCfg returned null — Odoo not configured");
           log?.error(`[odoo_api]    api.config?.channels?.odoo = ${JSON.stringify(api.config?.channels?.odoo)}`);
           log?.error(`[odoo_api]    ODOO_URL=${process.env.ODOO_URL || "(not set)"} ODOO_DB=${process.env.ODOO_DB || "(not set)"} ODOO_UID=${process.env.ODOO_UID || "(not set)"} ODOO_BOT_PARTNER_ID=${process.env.ODOO_BOT_PARTNER_ID || "(not set)"}`);
@@ -71,6 +88,7 @@ export function registerOdooApiTool(api: ClawdbotPluginApi) {
           try {
             const result = await odooRpc(cfg, model, method, args, kwargs);
             const resultStr = JSON.stringify(result, null, 2);
+            console.log(`[odoo_api] ✅ success! ${model}.${method} returned ${resultStr.length} chars`);
             log?.info(`[odoo_api] ✅ success! ${model}.${method} returned ${resultStr.length} chars (preview: ${resultStr.slice(0, 300)})`);
             return {
               content: [{ type: "text" as const, text: resultStr }],
@@ -95,6 +113,7 @@ export function registerOdooApiTool(api: ClawdbotPluginApi) {
           }
         }
 
+        console.log(`[odoo_api] ❌ all retries exhausted. Final error: ${lastError}`);
         log?.error(`[odoo_api] ❌ all retries exhausted. Final error: ${lastError}`);
         // Return structured error as data (not thrown) so the AI can report it to the user
         return {
