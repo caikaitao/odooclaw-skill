@@ -1,11 +1,11 @@
 import type { ClawdbotPluginApi } from "openclaw/plugin-sdk";
 import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
 
-import { setOdooRuntime } from "./runtime.js";
-import { getCfg } from "./config.js";
-import { registerOdooApiTool } from "./tools/odoo-api.js";
-import { odooPlugin, registerPollingService } from "./channel.js";
-import { getProvider } from "./providers/registry.js";
+import { setOdooRuntime } from "./runtime.ts";
+import { getCfg } from "./config.ts";
+import { registerOdooApiTool } from "./tools/odoo-api.ts";
+import { odooPlugin, registerPollingService } from "./channel.ts";
+import { getProvider } from "./providers/registry.ts";
 
 const plugin = {
   id: "odoo-tools",

@@ -1,6 +1,6 @@
-import type { ChannelProvider, InboundMessage, ResolvedChannel } from "./types.js";
-import type { OdooConfig } from "../rpc.js";
-import { odooRpc } from "../rpc.js";
+import type { ChannelProvider, InboundMessage, ResolvedChannel } from "./types.ts";
+import type { OdooConfig } from "../rpc.ts";
+import { odooRpc } from "../rpc.ts";
 
 /**
  * Odoo Discuss provider — polls `discuss.channel` messages via `mail.message`.

@@ -1,6 +1,6 @@
 import type { ClawdbotPluginApi } from "openclaw/plugin-sdk";
 
-import type { OdooConfig, MaybeWrappedOdooConfig } from "./rpc.js";
+import type { OdooConfig, MaybeWrappedOdooConfig } from "./rpc.ts";
 
 /**
  * Read and validate the Odoo config from plugin API or environment variables.

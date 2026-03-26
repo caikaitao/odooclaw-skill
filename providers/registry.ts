@@ -1,5 +1,5 @@
-import type { ChannelProvider } from "./types.js";
-import { discussProvider } from "./discuss.js";
+import type { ChannelProvider } from "./types.ts";
+import { discussProvider } from "./discuss.ts";
 
 /* ── Built-in providers ── */
 

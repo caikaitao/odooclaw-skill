@@ -1,4 +1,4 @@
-import type { OdooConfig } from "../rpc.js";
+import type { OdooConfig } from "../rpc.ts";
 
 /* ── Normalized inbound message ── */
 

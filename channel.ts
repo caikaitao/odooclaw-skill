@@ -1,12 +1,12 @@
 import type { ClawdbotPluginApi } from "openclaw/plugin-sdk";
 
-import type { OdooConfig } from "./rpc.js";
-import type { ChannelProvider, InboundMessage, ResolvedChannel } from "./providers/types.js";
-import { odooRpc } from "./rpc.js";
-import { getCfg } from "./config.js";
-import { getOdooRuntime } from "./runtime.js";
-import { formatOdooRichText, cleanOdooBody } from "./rich-text.js";
-import { getProvider } from "./providers/registry.js";
+import type { OdooConfig } from "./rpc.ts";
+import type { ChannelProvider, InboundMessage, ResolvedChannel } from "./providers/types.ts";
+import { odooRpc } from "./rpc.ts";
+import { getCfg } from "./config.ts";
+import { getOdooRuntime } from "./runtime.ts";
+import { formatOdooRichText, cleanOdooBody } from "./rich-text.ts";
+import { getProvider } from "./providers/registry.ts";
 
 /* ── Tracking sent message IDs for reliable bot-echo filtering ── */
 
