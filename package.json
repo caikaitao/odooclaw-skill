@@ -2,6 +2,9 @@
   "name": "odoo-tools",
   "version": "2.0.0",
   "description": "Odoo ERP API Tools + AI Skill + Channel",
+  "dependencies": {
+    "@sinclair/typebox": "^0.34.0"
+  },
   "openclaw": {
     "extensions": [
       "./index.ts"
