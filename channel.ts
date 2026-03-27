@@ -13,6 +13,31 @@ import { getProvider } from "./providers/registry.ts";
 const sentMessageIds = new Set<number>();
 const SENT_IDS_MAX = 500;
 
+/* ── Channel resolution cache (LRU-like) ── */
+
+const channelCache = new Map<number, { data: ResolvedChannel | null; ts: number }>();
+const CHANNEL_CACHE_TTL_MS = 5 * 60_000; // 5 minutes
+const CHANNEL_CACHE_MAX = 200;
+
+function getCachedChannel(id: number): ResolvedChannel | null | undefined {
+  const entry = channelCache.get(id);
+  if (!entry) return undefined;
+  if (Date.now() - entry.ts > CHANNEL_CACHE_TTL_MS) {
+    channelCache.delete(id);
+    return undefined;
+  }
+  return entry.data;
+}
+
+function setCachedChannel(id: number, data: ResolvedChannel | null) {
+  if (channelCache.size >= CHANNEL_CACHE_MAX) {
+    // evict oldest entry
+    const firstKey = channelCache.keys().next().value;
+    if (firstKey !== undefined) channelCache.delete(firstKey);
+  }
+  channelCache.set(id, { data, ts: Date.now() });
+}
+
 export function trackSentMessageId(id: number) {
   sentMessageIds.add(id);
   if (sentMessageIds.size > SENT_IDS_MAX) {
@@ -215,10 +240,19 @@ const DEFAULT_POLL_INTERVAL_MS = 3000;
 let pollingStarted = false;
 
 /** Max polling interval after consecutive errors (exponential backoff cap). */
-const MAX_BACKOFF_MS = 60_000;
+const MAX_BACKOFF_MS = 30_000;
 
 /** Consecutive error counter for backoff. */
 let consecutiveErrors = 0;
+
+/** Poll cycle counter for heartbeat logging. */
+let pollCycleCount = 0;
+
+/** Heartbeat log every N successful poll cycles. */
+const HEARTBEAT_INTERVAL = 100;
+
+/** Track last successful poll timestamp. */
+let lastSuccessPollTs = 0;
 
 export function registerPollingService(api: ClawdbotPluginApi) {
   savedApi = api;
@@ -239,13 +273,17 @@ export function registerPollingService(api: ClawdbotPluginApi) {
   const poll = async () => {
     const cfg = getCfg(api);
     if (!cfg) {
-      (api.logger as any)?.warn?.(
-        "odoo-channel: config incomplete — polling skipped. " +
-        "Ensure channels.odoo has url, db, uid, botPartnerId, and password/apiKey.",
-      ) ?? api.logger?.info(
-        "odoo-channel: config incomplete — polling skipped. " +
-        "Ensure channels.odoo has url, db, uid, botPartnerId, and password/apiKey.",
-      );
+      // Log config-missing warning at reduced frequency to avoid log spam
+      if (pollCycleCount % 20 === 0) {
+        (api.logger as any)?.warn?.(
+          "odoo-channel: config incomplete — polling skipped. " +
+          "Ensure channels.odoo has url, db, uid, botPartnerId, and password/apiKey.",
+        ) ?? api.logger?.info(
+          "odoo-channel: config incomplete — polling skipped. " +
+          "Ensure channels.odoo has url, db, uid, botPartnerId, and password/apiKey.",
+        );
+      }
+      pollCycleCount++;
       return;
     }
 
@@ -265,36 +303,70 @@ export function registerPollingService(api: ClawdbotPluginApi) {
         }
         api.logger?.info(`odoo-channel: initialized cursor lastMessageId=${lastMessageId} provider=${provider.id}`);
         consecutiveErrors = 0;
+        lastSuccessPollTs = Date.now();
         return;
       }
 
       const newMsgs = await provider.fetchNewMessages(cfg, lastMessageId);
       consecutiveErrors = 0;
+      lastSuccessPollTs = Date.now();
+      pollCycleCount++;
+
+      // Heartbeat: periodic health log so operators can confirm polling is alive
+      if (pollCycleCount % HEARTBEAT_INTERVAL === 0) {
+        api.logger?.info(
+          `odoo-channel: heartbeat — cycle=${pollCycleCount} cursor=${lastMessageId} provider=${provider.id}`,
+        );
+      }
 
       if (!newMsgs?.length) return;
 
       for (const msg of newMsgs) {
         lastMessageId = Math.max(lastMessageId, msg.id);
 
-        if (msg.authorId?.[0] === cfg.botPartnerId) continue;
-        if (sentMessageIds.has(msg.id)) continue;
+        // Per-message processing wrapped in try/catch so one bad message
+        // does not kill the entire batch
+        try {
+          if (msg.authorId?.[0] === cfg.botPartnerId) continue;
+          if (sentMessageIds.has(msg.id)) continue;
 
-        const bodyText = cleanOdooBody(msg.body);
-        if (!bodyText) continue;
+          const bodyText = cleanOdooBody(msg.body);
+          if (!bodyText) continue;
 
-        const channel = await provider.resolveChannel(cfg, msg.channelId);
-        if (!channel) continue;
-        if (!provider.shouldRespond(channel, msg, cfg)) continue;
+          // Use channel cache to avoid redundant RPC calls
+          let channel = getCachedChannel(msg.channelId);
+          if (channel === undefined) {
+            channel = await provider.resolveChannel(cfg, msg.channelId);
+            setCachedChannel(msg.channelId, channel);
+          }
+          if (!channel) continue;
+          if (!provider.shouldRespond(channel, msg, cfg)) continue;
 
-        api.logger?.info(
-          `odoo-channel: new message ch=${msg.channelId} provider=${provider.id} from=${msg.authorId?.[1] ?? "unknown"}: ${bodyText.slice(0, 80)}`,
-        );
+          api.logger?.info(
+            `odoo-channel: new message ch=${msg.channelId} provider=${provider.id} from=${msg.authorId?.[1] ?? "unknown"}: ${bodyText.slice(0, 80)}`,
+          );
 
-        await handleInboundMessage(api, cfg, msg, channel, provider);
+          await handleInboundMessage(api, cfg, msg, channel, provider);
+        } catch (msgErr: any) {
+          api.logger?.error(
+            `odoo-channel: failed to process msg id=${msg.id}: ${msgErr?.message || msgErr}`,
+          );
+          // continue processing remaining messages
+        }
       }
     } catch (e: any) {
       consecutiveErrors += 1;
-      api.logger?.error(`odoo-channel polling error (attempt ${consecutiveErrors}, next in ${getInterval()}ms): ${e?.stack || e?.message || e}`);
+      const nextIn = getInterval();
+      api.logger?.error(
+        `odoo-channel polling error (attempt ${consecutiveErrors}, next in ${nextIn}ms): ${e?.stack || e?.message || e}`,
+      );
+
+      // If we've been failing for a while, log a prominent warning
+      if (consecutiveErrors === 5) {
+        api.logger?.error(
+          "odoo-channel: ⚠️ 5 consecutive polling failures — check Odoo connectivity and credentials.",
+        );
+      }
     }
   };
 
@@ -313,6 +385,9 @@ export function registerPollingService(api: ClawdbotPluginApi) {
     }
     pollingStarted = false;
     consecutiveErrors = 0;
+    pollCycleCount = 0;
+    lastSuccessPollTs = 0;
+    channelCache.clear();
     api.logger?.info("odoo-channel: polling service stopped");
   };
 

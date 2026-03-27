@@ -59,45 +59,27 @@ export function registerOdooApiTool(api: ClawdbotPluginApi) {
         }
 
 
-        // Retry with exponential backoff for transient failures
-        const MAX_RETRIES = 2;
-        let lastError: string = "";
-        for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-          try {
-            const result = await odooRpc(cfg, model, method, args, kwargs);
-            const resultStr = JSON.stringify(result, null, 2);
-            return {
-              content: [{ type: "text" as const, text: resultStr }],
-              details: {},
-            };
-          } catch (err: any) {
-            lastError = err?.message || String(err);
-            log?.error(`[odoo_api] attempt ${attempt + 1}/${MAX_RETRIES + 1} failed: ${lastError}`);
-            const isTransient =
-              lastError.includes("fetch failed") ||
-              lastError.includes("ECONNREFUSED") ||
-              lastError.includes("ETIMEDOUT") ||
-              lastError.includes("ECONNRESET") ||
-              lastError.includes("socket hang up") ||
-              lastError.includes("aborted");
-            if (isTransient && attempt < MAX_RETRIES) {
-              await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
-              continue;
-            }
-            break;
-          }
+        // odooRpc already retries transient network errors internally
+        try {
+          const result = await odooRpc(cfg, model, method, args, kwargs);
+          const resultStr = JSON.stringify(result, null, 2);
+          return {
+            content: [{ type: "text" as const, text: resultStr }],
+            details: {},
+          };
+        } catch (err: any) {
+          const lastError = err?.message || String(err);
+          log?.error(`[odoo_api] ${model}.${method} failed: ${lastError}`);
+          // Return structured error as data (not thrown) so the AI can report it to the user
+          return {
+            content: [{ type: "text" as const, text: JSON.stringify({
+              success: false,
+              error: lastError,
+              hint: `Odoo API call to ${model}.${method} failed. Report this error to the user clearly. Do NOT say you cannot access the system.`,
+            }) }],
+            details: {},
+          };
         }
-
-        log?.error(`[odoo_api] all retries exhausted: ${lastError}`);
-        // Return structured error as data (not thrown) so the AI can report it to the user
-        return {
-          content: [{ type: "text" as const, text: JSON.stringify({
-            success: false,
-            error: lastError,
-            hint: `Odoo API call to ${model}.${method} failed. Report this error to the user clearly. Do NOT say you cannot access the system.`,
-          }) }],
-          details: {},
-        };
       },
     };
   };

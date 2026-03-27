@@ -66,7 +66,31 @@ let rpcId = 0;
 
 /* ── Default request timeout (ms) ── */
 
-const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_TIMEOUT_MS = 45_000;
+
+/* ── Retry config for transient failures ── */
+
+const RPC_MAX_RETRIES = 2;
+const RPC_RETRY_BASE_MS = 800;
+
+/** Patterns that indicate a transient / retriable network issue. */
+const TRANSIENT_PATTERNS = [
+  "fetch failed",
+  "ECONNREFUSED",
+  "ETIMEDOUT",
+  "ECONNRESET",
+  "ENOTFOUND",
+  "socket hang up",
+  "aborted",
+  "network",
+  "UND_ERR_CONNECT_TIMEOUT",
+  "UND_ERR_SOCKET",
+];
+
+function isTransientError(msg: string): boolean {
+  const lower = msg.toLowerCase();
+  return TRANSIENT_PATTERNS.some((p) => lower.includes(p.toLowerCase()));
+}
 
 /* ── Legacy JSON-RPC (`/jsonrpc` — db + uid + password/apiKey) ── */
 
@@ -123,6 +147,7 @@ async function odooRpcLegacy(
  * Call an Odoo model method via Legacy JSON-RPC (`/jsonrpc`).
  *
  * Uses `db` + `uid` + (`password` or `apiKey`) for authentication.
+ * Automatically retries on transient network errors (up to RPC_MAX_RETRIES times).
  */
 export async function odooRpc(
   cfg: OdooConfig,
@@ -131,5 +156,21 @@ export async function odooRpc(
   args: any[] = [],
   kwargs: Record<string, any> = {},
 ): Promise<any> {
-  return await odooRpcLegacy(cfg, model, method, args, kwargs);
+  let lastErr: Error | undefined;
+  for (let attempt = 0; attempt <= RPC_MAX_RETRIES; attempt++) {
+    try {
+      return await odooRpcLegacy(cfg, model, method, args, kwargs);
+    } catch (err: any) {
+      lastErr = err;
+      const msg = err?.message || String(err);
+      if (attempt < RPC_MAX_RETRIES && isTransientError(msg)) {
+        const delay = RPC_RETRY_BASE_MS * Math.pow(2, attempt);
+        _rpcLogger?.info(`[odoo_rpc] transient error, retry ${attempt + 1}/${RPC_MAX_RETRIES} in ${delay}ms: ${msg}`);
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
 }
