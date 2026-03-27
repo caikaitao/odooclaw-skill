@@ -2,11 +2,11 @@
 name: odoo-api
 description: |
   MANDATORY for ALL business data questions. Call the odoo_api tool for:
-  sales orders (销售订单), purchases (采购订单), invoices (发票), inventory (库存),
-  contacts (联系人), products (产品), employees (员工), CRM leads.
-  Trigger: how many, count, list, find, check, 多少, 查询, 列出, 查看, 本月, 这个月.
+  sales orders, purchases, invoices, inventory, contacts, products, employees, CRM leads.
+  Trigger keywords: how many, count, list, find, check, total, summary, report.
   Also trigger when System message contains "Odoo DM from" or "Odoo message in".
   NEVER tell the user to check Odoo manually — always call odoo_api first.
+  IMPORTANT: Always respond in the same language as the user's query.
 metadata:
   openclaw:
     emoji: "🏢"

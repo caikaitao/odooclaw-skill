@@ -15,9 +15,7 @@ import type { OdooConfig, MaybeWrappedOdooConfig } from "./rpc.ts";
  * - `ODOO_PROVIDER`
  * - `ODOO_WEBHOOK_SECRET`
  *
- * Supports two auth modes:
- * - **Legacy** — requires `url`, `db`, `uid`, `password`, `botPartnerId`
- * - **API Key** — requires `url`, `apiKey`, `botPartnerId`
+ * Auth: requires `url`, `db`, `uid`, (`password` | `apiKey`), `botPartnerId`.
  *
  * Returns `null` if the config is missing or incomplete.
  */
@@ -25,32 +23,27 @@ export function getCfg(api: ClawdbotPluginApi): OdooConfig | null {
   const raw = api.config?.channels?.odoo as MaybeWrappedOdooConfig | undefined;
   const cfgFromPlugin = raw?.odoo?.url ? raw.odoo : (raw || {});
 
-  // Merge with environment variables
-  const cfg: OdooConfig = {
-    url: process.env.ODOO_URL || cfgFromPlugin.url || "",
-    db: process.env.ODOO_DB || cfgFromPlugin.db,
-    uid: process.env.ODOO_UID ? parseInt(process.env.ODOO_UID, 10) : cfgFromPlugin.uid,
-    password: process.env.ODOO_PASSWORD || cfgFromPlugin.password,
-    apiKey: process.env.ODOO_API_KEY || cfgFromPlugin.apiKey,
-    botPartnerId: process.env.ODOO_BOT_PARTNER_ID ? parseInt(process.env.ODOO_BOT_PARTNER_ID, 10) : cfgFromPlugin.botPartnerId || 0,
-    provider: process.env.ODOO_PROVIDER || cfgFromPlugin.provider,
-    webhookSecret: process.env.ODOO_WEBHOOK_SECRET || cfgFromPlugin.webhookSecret,
+  const url = process.env.ODOO_URL || cfgFromPlugin.url || "";
+  const db = process.env.ODOO_DB || cfgFromPlugin.db;
+  const uid = process.env.ODOO_UID ? parseInt(process.env.ODOO_UID, 10) : cfgFromPlugin.uid;
+  const password = process.env.ODOO_PASSWORD || cfgFromPlugin.password;
+  const apiKey = process.env.ODOO_API_KEY || cfgFromPlugin.apiKey;
+  const botPartnerId = process.env.ODOO_BOT_PARTNER_ID ? parseInt(process.env.ODOO_BOT_PARTNER_ID, 10) : cfgFromPlugin.botPartnerId || 0;
+  const provider = process.env.ODOO_PROVIDER || cfgFromPlugin.provider;
+  const webhookSecret = process.env.ODOO_WEBHOOK_SECRET || cfgFromPlugin.webhookSecret;
+
+  // All required fields must be present
+  if (!url || !db || !uid || !botPartnerId) return null;
+  if (!password && !apiKey) return null;
+
+  return {
+    url,
+    db,
+    uid,
+    password,
+    apiKey,
+    botPartnerId,
+    provider,
+    webhookSecret,
   };
-
-  // Ensure url and botPartnerId are present
-  if (!cfg.url || !cfg.botPartnerId) return null;
-
-  // For standard Odoo (even with API Key), we still need db and uid for JSON-RPC.
-  // We only fallback to REST if db/uid are missing but apiKey is present.
-  if (!cfg.db || !cfg.uid) {
-    if (cfg.apiKey) return cfg as OdooConfig; // Potential REST mode
-    return null;
-  }
-
-  // Legacy or JSON-RPC with API Key
-  if (cfg.password || cfg.apiKey) {
-    return cfg as OdooConfig;
-  }
-
-  return null;
 }

@@ -30,8 +30,15 @@ const plugin = {
     registerPollingService(api);
 
     const cfg = getCfg(api);
-    const providerLabel = cfg ? getProvider(cfg.provider).label : "Discuss (default)";
-    api.logger?.info(`[odoo-tools] plugin loaded (provider: ${providerLabel})`);
+    if (cfg) {
+      const providerLabel = getProvider(cfg.provider).label;
+      api.logger?.info(`[odoo-tools] plugin loaded — provider: ${providerLabel}, url: ${cfg.url}, db: ${cfg.db}, uid: ${cfg.uid}`);
+    } else {
+      api.logger?.info(
+        "[odoo-tools] plugin loaded but Odoo config is INCOMPLETE. " +
+        "Channel polling will not start until channels.odoo (or ODOO_* env vars) are properly configured.",
+      );
+    }
   },
 };
 

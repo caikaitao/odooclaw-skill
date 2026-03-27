@@ -18,10 +18,11 @@ export function registerOdooApiTool(api: ClawdbotPluginApi) {
       label: "Odoo API",
       description:
         "IMPORTANT: You MUST call this tool whenever the user asks about ANY business data from Odoo ERP. " +
-        "This includes questions about: sales orders (销售订单), purchases (采购订单), inventory/stock (库存), " +
-        "invoices (发票), contacts (联系人), products (产品), employees (员工), CRM leads/opportunities. " +
-        "Trigger words: how many, count, list, find, check, show, get, 多少, 查询, 列出, 查看, 有几个, 这个月, 本月. " +
+        "This includes questions about: sales orders, purchases, inventory/stock, " +
+        "invoices, contacts, products, employees, CRM leads/opportunities. " +
+        "Trigger words: how many, count, list, find, check, show, get, total, summary, report. " +
         "DO NOT say you cannot access the system. DO NOT recommend the user to check Odoo directly. ALWAYS call this tool first. " +
+        "IMPORTANT: Always respond in the same language as the user's query. Do NOT mix languages in your response. " +
         "Example — count sales orders this month: {model:'sale.order', method:'search_count', args:[[['create_date','>=','2026-03-01'],['create_date','<','2026-04-01']]]}. " +
         "Example — list records: {model:'sale.order', method:'search_read', args:[[]], kwargs:{fields:['name','amount_total','state'],limit:10,order:'create_date desc'}}.",
       parameters: Type.Object({

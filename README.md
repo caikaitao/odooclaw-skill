@@ -5,7 +5,7 @@
 ## ✨ 功能
 
 ### 🔧 Skill — `odoo_api` 工具
-- 通过 JSON-RPC 或 API Key 调用**任意** Odoo 模型方法（search_read、create、write、unlink 等）
+- 通过 JSON-RPC 调用**任意** Odoo 模型方法（search_read、create、write、unlink 等）
 - 自动注入 AI Skill（`SKILL.md`），指导 AI 正确使用 Odoo API（常用模型、Domain 语法、最佳实践）
 
 ### 💬 Channel — Odoo 消息渠道
@@ -15,9 +15,9 @@
 - **私聊**直接响应，**群组**被 @mention 时响应
 - **指数退避**：连续错误时自动增加轮询间隔（3s → 60s cap）
 
-### 🔐 双认证模式
-- **Legacy JSON-RPC** — `db` + `uid` + `password` 通过 `/jsonrpc` 端点
-- **API Key** — `apiKey` 通过 `/api/` REST 端点（Odoo 17+，Bearer token）
+### 🔐 认证方式
+- **JSON-RPC** — `db` + `uid` + (`password` | `apiKey`) 通过 `/jsonrpc` 端点
+- `apiKey` 作为密码替代品（Odoo 17+ API Key 功能）
 - 请求超时保护（默认 30 秒）、并发安全（自增 RPC ID）
 
 ## 📦 项目结构
@@ -25,7 +25,7 @@
 ```
 odoo-tools/
 ├── index.ts                  # 插件入口 — 注册 tool + channel + polling
-├── rpc.ts                    # Odoo RPC（Legacy + API Key 双认证）
+├── rpc.ts                    # Odoo RPC（JSON-RPC 认证）
 ├── config.ts                 # 配置读取与校验
 ├── runtime.ts                # 运行时上下文
 ├── channel.ts                # Channel 注册 + 轮询服务 + 入站消息处理
@@ -62,7 +62,7 @@ ln -s /path/to/odoo-tools ~/.openclaw/extensions/odoo-tools
 
 在 `~/.openclaw/openclaw.json` 中添加 `channels.odoo` 配置：
 
-### Legacy 认证（db + uid + password）
+### 使用密码认证
 
 ```json
 {
@@ -79,9 +79,9 @@ ln -s /path/to/odoo-tools ~/.openclaw/extensions/odoo-tools
 }
 ```
 
-### API Key 认证（Odoo 17+）
+### 使用 API Key 认证（Odoo 17+）
 
-推荐方式。在标准 Odoo 中，API Key 需配合 `db` 和 `uid` 使用（作为密码替代品）。
+API Key 作为密码的替代品，通过 JSON-RPC 端点认证。
 
 ```json
 {
@@ -98,8 +98,6 @@ ln -s /path/to/odoo-tools ~/.openclaw/extensions/odoo-tools
 }
 ```
 
-> 💡 只有当你的 Odoo 安装了特定的 REST API 模块时，才可以在省略 `db` 和 `uid` 的情况下仅靠 `apiKey` 工作。
-
 ### 使用其他 Provider
 
 ```json
@@ -107,6 +105,8 @@ ln -s /path/to/odoo-tools ~/.openclaw/extensions/odoo-tools
   "channels": {
     "odoo": {
       "url": "https://your-odoo.com",
+      "db": "your-database",
+      "uid": 2,
       "apiKey": "your-api-key",
       "botPartnerId": 3,
       "provider": "helpdesk"
@@ -119,16 +119,18 @@ ln -s /path/to/odoo-tools ~/.openclaw/extensions/odoo-tools
 
 ### 配置参数说明
 
-| 参数 | Legacy 模式 | API Key 模式 | 类型 | 说明 |
-|------|:-----------:|:------------:|------|------|
-| `url` | ✅ 必填 | ✅ 必填 | string | Odoo 实例地址 |
-| `db` | ✅ 必填 | ❌ 不需要 | string | Odoo 数据库名称 |
-| `uid` | ✅ 必填 | ❌ 不需要 | number | Odoo 用户 ID |
-| `password` | ✅ 必填 | ❌ 不需要 | string | Odoo 用户密码 |
-| `apiKey` | ❌ 不需要 | ✅ 必填 | string | Odoo API Key |
-| `botPartnerId` | ✅ 必填 | ✅ 必填 | number | Bot 的 `res.partner` ID |
-| `webhookSecret` | ❌ 可选 | ❌ 可选 | string | 预留：Webhook 入站 |
-| `provider` | ❌ 可选 | ❌ 可选 | string | Channel Provider（默认 `"discuss"`） |
+| 参数 | 必填 | 类型 | 说明 |
+|------|:----:|------|------|
+| `url` | ✅ | string | Odoo 实例地址 |
+| `db` | ✅ | string | Odoo 数据库名称 |
+| `uid` | ✅ | number | Odoo 用户 ID |
+| `password` | ⚡ | string | Odoo 用户密码（与 `apiKey` 二选一） |
+| `apiKey` | ⚡ | string | Odoo API Key，作为密码替代品（与 `password` 二选一） |
+| `botPartnerId` | ✅ | number | Bot 的 `res.partner` ID |
+| `webhookSecret` | ❌ | string | 预留：Webhook 入站 |
+| `provider` | ❌ | string | Channel Provider（默认 `"discuss"`） |
+
+> ⚡ `password` 和 `apiKey` 至少需要提供一个。
 
 ### 🌍 环境变量支持
 
@@ -140,7 +142,7 @@ ln -s /path/to/odoo-tools ~/.openclaw/extensions/odoo-tools
 | `ODOO_DB` | `db` | Odoo 数据库名称 |
 | `ODOO_UID` | `uid` | Odoo 用户 ID |
 | `ODOO_PASSWORD` | `password` | Odoo 用户密码 |
-| `ODOO_API_KEY` | `apiKey` | API Key (在标准 Odoo 下仍需设置 `ODOO_DB` 和 `ODOO_UID`) |
+| `ODOO_API_KEY` | `apiKey` | API Key（作为密码替代品） |
 | `ODOO_BOT_PARTNER_ID` | `botPartnerId` | Bot 的 `res.partner` ID |
 | `ODOO_PROVIDER` | `provider` | Channel Provider |
 | `ODOO_WEBHOOK_SECRET` | `webhookSecret` | Webhook 密钥 |

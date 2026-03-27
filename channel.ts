@@ -21,6 +21,19 @@ export function trackSentMessageId(id: number) {
   }
 }
 
+/* ── Filter: framework / system diagnostic messages ── */
+
+const SYSTEM_DIAGNOSTIC_PATTERNS = [
+  /Gateway restart update skipped/i,
+  /openclaw\s+doctor/i,
+  /Run:\s*openclaw\s/i,
+];
+
+/** Returns true when the text looks like an internal framework diagnostic that should not be forwarded to Odoo. */
+function isSystemDiagnostic(text: string): boolean {
+  return SYSTEM_DIAGNOSTIC_PATTERNS.some((p) => p.test(text));
+}
+
 /* ── Saved plugin API reference for outbound ── */
 
 let savedApi: ClawdbotPluginApi | null = null;
@@ -56,6 +69,8 @@ export const odooPlugin = {
       if (!savedApi) return { ok: false, error: "Odoo plugin API not initialized" };
       const cfg = getCfg(savedApi);
       if (!cfg) return { ok: false, error: "Odoo not configured" };
+
+      if (isSystemDiagnostic(text)) return { ok: true }; // silently drop framework diagnostics
 
       const match = to.match(/^(?:channel|chat|group):(\d+)$/) ?? to.match(/^(\d+)$/);
       if (!match) return { ok: false, error: `Invalid 'to' format: ${to}` };
@@ -167,6 +182,7 @@ async function handleInboundMessage(
     humanDelay: core.channel.reply.resolveHumanDelayConfig(api.config, agentId),
     deliver: async (payload: { text?: string }) => {
       const text = payload.text ?? "";
+      if (isSystemDiagnostic(text)) return; // silently drop framework diagnostics
       const chunks = core.channel.text.chunkMarkdownTextWithMode(text, textLimit, chunkMode);
       for (const chunk of chunks.length > 0 ? chunks : [text]) {
         if (!chunk) continue;
@@ -195,6 +211,9 @@ let pollingTimer: ReturnType<typeof setTimeout> | null = null;
 /** Default polling interval in ms. */
 const DEFAULT_POLL_INTERVAL_MS = 3000;
 
+/** Whether the polling loop has been started at least once. */
+let pollingStarted = false;
+
 /** Max polling interval after consecutive errors (exponential backoff cap). */
 const MAX_BACKOFF_MS = 60_000;
 
@@ -204,87 +223,116 @@ let consecutiveErrors = 0;
 export function registerPollingService(api: ClawdbotPluginApi) {
   savedApi = api;
 
-  api.registerService({
-    id: "odoo-poller",
-    start: async () => {
-      api.logger?.info("odoo-channel: starting polling service");
+  const getInterval = () => {
+    if (consecutiveErrors === 0) return DEFAULT_POLL_INTERVAL_MS;
+    return Math.min(DEFAULT_POLL_INTERVAL_MS * Math.pow(2, consecutiveErrors), MAX_BACKOFF_MS);
+  };
 
-      const getInterval = () => {
-        if (consecutiveErrors === 0) return DEFAULT_POLL_INTERVAL_MS;
-        return Math.min(DEFAULT_POLL_INTERVAL_MS * Math.pow(2, consecutiveErrors), MAX_BACKOFF_MS);
-      };
-
-      const schedulePoll = () => {
-        if (pollingTimer) clearTimeout(pollingTimer);
-        pollingTimer = setTimeout(async () => {
-          await poll();
-          schedulePoll();
-        }, getInterval());
-      };
-
-      const poll = async () => {
-        const cfg = getCfg(api);
-        if (!cfg) return;
-
-        const provider = getProvider(cfg.provider);
-
-        try {
-          if (lastMessageId === 0) {
-            if (provider.initCursor) {
-              lastMessageId = await provider.initCursor(cfg);
-            } else {
-              const msgs = await odooRpc(cfg, "mail.message", "search_read", [[]], {
-                fields: ["id"],
-                limit: 1,
-                order: "id desc",
-              });
-              lastMessageId = msgs?.[0]?.id ?? 0;
-            }
-            api.logger?.info(`odoo-channel: initialized cursor lastMessageId=${lastMessageId} provider=${provider.id}`);
-            consecutiveErrors = 0;
-            return;
-          }
-
-          const newMsgs = await provider.fetchNewMessages(cfg, lastMessageId);
-          consecutiveErrors = 0;
-
-          if (!newMsgs?.length) return;
-
-          for (const msg of newMsgs) {
-            lastMessageId = Math.max(lastMessageId, msg.id);
-
-            if (msg.authorId?.[0] === cfg.botPartnerId) continue;
-            if (sentMessageIds.has(msg.id)) continue;
-
-            const bodyText = cleanOdooBody(msg.body);
-            if (!bodyText) continue;
-
-            const channel = await provider.resolveChannel(cfg, msg.channelId);
-            if (!channel) continue;
-            if (!provider.shouldRespond(channel, msg, cfg)) continue;
-
-            api.logger?.info(
-              `odoo-channel: new message ch=${msg.channelId} provider=${provider.id} from=${msg.authorId?.[1] ?? "unknown"}: ${bodyText.slice(0, 80)}`,
-            );
-
-            await handleInboundMessage(api, cfg, msg, channel, provider);
-          }
-        } catch (e: any) {
-          consecutiveErrors += 1;
-          api.logger?.error(`odoo-channel polling error (attempt ${consecutiveErrors}, next in ${getInterval()}ms): ${e?.stack || e?.message || e}`);
-        }
-      };
-
+  const schedulePoll = () => {
+    if (pollingTimer) clearTimeout(pollingTimer);
+    pollingTimer = setTimeout(async () => {
       await poll();
       schedulePoll();
-    },
-    stop: () => {
-      if (pollingTimer) {
-        clearTimeout(pollingTimer);
-        pollingTimer = null;
+    }, getInterval());
+  };
+
+  const poll = async () => {
+    const cfg = getCfg(api);
+    if (!cfg) {
+      (api.logger as any)?.warn?.(
+        "odoo-channel: config incomplete — polling skipped. " +
+        "Ensure channels.odoo has url, db, uid, botPartnerId, and password/apiKey.",
+      ) ?? api.logger?.info(
+        "odoo-channel: config incomplete — polling skipped. " +
+        "Ensure channels.odoo has url, db, uid, botPartnerId, and password/apiKey.",
+      );
+      return;
+    }
+
+    const provider = getProvider(cfg.provider);
+
+    try {
+      if (lastMessageId === 0) {
+        if (provider.initCursor) {
+          lastMessageId = await provider.initCursor(cfg);
+        } else {
+          const msgs = await odooRpc(cfg, "mail.message", "search_read", [[]], {
+            fields: ["id"],
+            limit: 1,
+            order: "id desc",
+          });
+          lastMessageId = msgs?.[0]?.id ?? 0;
+        }
+        api.logger?.info(`odoo-channel: initialized cursor lastMessageId=${lastMessageId} provider=${provider.id}`);
+        consecutiveErrors = 0;
+        return;
       }
+
+      const newMsgs = await provider.fetchNewMessages(cfg, lastMessageId);
       consecutiveErrors = 0;
-      api.logger?.info("odoo-channel: polling service stopped");
-    },
+
+      if (!newMsgs?.length) return;
+
+      for (const msg of newMsgs) {
+        lastMessageId = Math.max(lastMessageId, msg.id);
+
+        if (msg.authorId?.[0] === cfg.botPartnerId) continue;
+        if (sentMessageIds.has(msg.id)) continue;
+
+        const bodyText = cleanOdooBody(msg.body);
+        if (!bodyText) continue;
+
+        const channel = await provider.resolveChannel(cfg, msg.channelId);
+        if (!channel) continue;
+        if (!provider.shouldRespond(channel, msg, cfg)) continue;
+
+        api.logger?.info(
+          `odoo-channel: new message ch=${msg.channelId} provider=${provider.id} from=${msg.authorId?.[1] ?? "unknown"}: ${bodyText.slice(0, 80)}`,
+        );
+
+        await handleInboundMessage(api, cfg, msg, channel, provider);
+      }
+    } catch (e: any) {
+      consecutiveErrors += 1;
+      api.logger?.error(`odoo-channel polling error (attempt ${consecutiveErrors}, next in ${getInterval()}ms): ${e?.stack || e?.message || e}`);
+    }
+  };
+
+  const startPolling = async () => {
+    if (pollingStarted) return;
+    pollingStarted = true;
+    api.logger?.info("odoo-channel: starting polling service");
+    await poll();
+    schedulePoll();
+  };
+
+  const stopPolling = () => {
+    if (pollingTimer) {
+      clearTimeout(pollingTimer);
+      pollingTimer = null;
+    }
+    pollingStarted = false;
+    consecutiveErrors = 0;
+    api.logger?.info("odoo-channel: polling service stopped");
+  };
+
+  // Register as a managed service so the framework can stop it gracefully.
+  api.registerService({
+    id: "odoo-poller",
+    start: startPolling,
+    stop: stopPolling,
   });
+
+  // Auto-start: kick off polling immediately if config is available,
+  // so we don't depend solely on the framework calling start().
+  const cfg = getCfg(api);
+  if (cfg) {
+    api.logger?.info("odoo-channel: auto-starting polling (config detected)");
+    startPolling();
+  } else {
+    api.logger?.info(
+      "odoo-channel: polling registered but not auto-started (config missing). " +
+      "Waiting for framework to call start() or for config to become available.",
+    );
+  }
 }
