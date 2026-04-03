@@ -23,6 +23,8 @@ export function registerOdooApiTool(api: ClawdbotPluginApi) {
         "Trigger words: how many, count, list, find, check, show, get, total, summary, report. " +
         "DO NOT say you cannot access the system. DO NOT recommend the user to check Odoo directly. ALWAYS call this tool first. " +
         "IMPORTANT: Always respond in the same language as the user's query. Do NOT mix languages in your response. " +
+        "When executing scheduled reports (Cron Jobs), please use Markdown tables to present core metrics clearly, " +
+        "and include relevant statuses, amounts, and responsible persons. " +
         "Example — count sales orders this month: {model:'sale.order', method:'search_count', args:[[['create_date','>=','2026-03-01'],['create_date','<','2026-04-01']]]}. " +
         "Example — list records: {model:'sale.order', method:'search_read', args:[[]], kwargs:{fields:['name','amount_total','state'],limit:10,order:'create_date desc'}}.",
       parameters: Type.Object({

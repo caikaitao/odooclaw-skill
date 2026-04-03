@@ -30,10 +30,25 @@ export const discussProvider: ChannelProvider = {
   },
 
   async sendMessage(cfg: OdooConfig, channelId: number, text: string, isHtml = false): Promise<void> {
-    await odooRpc(cfg, "discuss.channel", "openclaw_post_bot_message", [[channelId], text], {
-      author_partner_id: cfg.botPartnerId,
-      is_html: isHtml,
-    });
+    try {
+      await odooRpc(cfg, "discuss.channel", "openclaw_post_bot_message", [[channelId], text], {
+        author_partner_id: cfg.botPartnerId,
+        is_html: isHtml,
+      });
+    } catch (err: any) {
+      const errMsg = err?.message || "";
+      if (errMsg.includes("does not exist") && errMsg.includes("openclaw_post_bot_message")) {
+        // Fallback to standard message_post if the Odoo-side module is not installed.
+        // Odoo's message_post expects 'body' which can be HTML or plain text.
+        await odooRpc(cfg, "discuss.channel", "message_post", [[channelId]], {
+          body: text,
+          message_type: "comment",
+          author_id: cfg.botPartnerId,
+        });
+        return;
+      }
+      throw err;
+    }
   },
 
   async resolveChannel(cfg: OdooConfig, channelId: number): Promise<ResolvedChannel | null> {
