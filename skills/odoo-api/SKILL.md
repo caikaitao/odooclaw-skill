@@ -4,9 +4,11 @@ description: |
   MANDATORY for ALL business data questions. Call the odoo_api tool for:
   sales orders, purchases, invoices, inventory, contacts, products, employees, CRM leads.
   Trigger keywords: how many, count, list, find, check, total, summary, report.
-  Also trigger when System message contains "Odoo DM from" or "Odoo message in".
-  NEVER tell the user to check Odoo manually — always call odoo_api first.
+  Also trigger when System message contains "DM from" or "message in" related to the ERP channel.
+  NEVER tell the user to check any external system manually — always call odoo_api first.
   IMPORTANT: Always respond in the same language as the user's query.
+  BRANDING: NEVER mention 'Odoo' or any internal system name in your replies to the user.
+  ERROR HANDLING: If the tool fails, reply with a friendly fallback message. Never expose raw errors, debug info, session IDs, or file paths.
 metadata:
   openclaw:
     emoji: "🏢"
@@ -14,11 +16,15 @@ metadata:
     primaryEnv: ODOO_URL
 ---
 
-# Odoo ERP Query
+# ERP Business Data Query
 
-**CRITICAL RULE**: When the user asks about ANY business data (sales, purchases, inventory, invoices, contacts, products, employees, CRM), you MUST call the `odoo_api` tool IMMEDIATELY. Do NOT say you cannot access the system. Do NOT suggest the user check Odoo manually. Do NOT hallucinate results — call the tool and report what it returns.
+**CRITICAL RULE**: When the user asks about ANY business data (sales, purchases, inventory, invoices, contacts, products, employees, CRM), you MUST call the `odoo_api` tool IMMEDIATELY. Do NOT say you cannot access the system. Do NOT suggest the user check any system manually. Do NOT hallucinate results — call the tool and report what it returns.
 
-Also call `odoo_api` when a System message contains "Odoo DM from" or "Odoo message in".
+**BRANDING RULE** (applies ONLY to your final user-facing reply text, NOT to tool calls): NEVER use the word "Odoo" or any internal system name in the text you show to the user. Use "the system", "ERP", or "business system" if needed. You MUST still call `odoo_api` by its exact tool name when making tool calls — the branding rule does not prevent tool usage.
+
+**ERROR HANDLING RULE**: If `odoo_api` returns an error, do NOT show raw error messages, stack traces, debug info, session IDs, file paths, or technical diagnostics. Instead reply: "Unable to retrieve data at this time, please try again later."
+
+Also call `odoo_api` when a System message contains "DM from" or "message in" related to the ERP channel.
 
 ## How to Call `odoo_api`
 
@@ -55,7 +61,7 @@ Also call `odoo_api` when a System message contains "Odoo DM from" or "Odoo mess
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
-| `model`   | ✅       | Odoo model name, e.g. `sale.order`, `purchase.order`, `res.partner` |
+| `model`   | ✅       | ERP model name, e.g. `sale.order`, `purchase.order`, `res.partner` |
 | `method`  | ✅       | Method: `search_read`, `search_count`, `create`, `write`, `unlink`, `name_search` |
 | `args`    |          | Positional arguments array. Default `[]` |
 | `kwargs`  |          | Keyword arguments object. Default `{}` |
@@ -88,4 +94,5 @@ Also call `odoo_api` when a System message contains "Odoo DM from" or "Odoo mess
 
 - Call `odoo_api` first, then present results. No preamble.
 - Always specify `fields` in kwargs. Use `limit` (10–20) and `order`.
-- If `odoo_api` returns an error, report the specific error. Never say you cannot access the system.
+- If `odoo_api` returns an error, do NOT expose the raw error. Reply with a friendly fallback: "Unable to retrieve data at this time."
+- NEVER mention "Odoo" or any internal system name in your replies to the user.
