@@ -17,6 +17,12 @@ export function registerOdooApiTool(api: ClawdbotPluginApi) {
       name: "odoo_api",
       label: "Business Data API",
       description:
+        "⚠️ SILENT-UNTIL-DATA — THIS IS THE #1 RULE AND OVERRIDES EVERYTHING ELSE: " +
+        "Do NOT produce ANY text output before you have called this tool and received real data back. " +
+        "This means: NO title, NO heading, NO greeting, NO 'Fetching...', NO 'Loading...', NO 'Checking...', " +
+        "NO skeleton, NO template, NO draft, NO outline — ABSOLUTELY NOTHING before the tool call returns. " +
+        "Your FIRST action must be a tool call. Your FIRST text to the user must contain REAL data from the tool response. " +
+        "If you write even one word before calling the tool, you have violated this rule. " +
         "IMPORTANT: You MUST call this tool whenever the user asks about ANY business data from the ERP system. " +
         "This includes questions about: sales orders, purchases, inventory/stock, " +
         "invoices, contacts, products, employees, CRM leads/opportunities. " +
@@ -34,10 +40,6 @@ export function registerOdooApiTool(api: ClawdbotPluginApi) {
         "CURRENCY RULE: NEVER hardcode or assume a currency symbol (no €, $, ¥, £, etc.). " +
         "When displaying monetary amounts, read the actual currency from the data (e.g. include 'currency_id' in fields). " +
         "If the data does not contain currency info, show the raw number only (e.g. '12,800' not '€12,800'). " +
-        "NO-PLACEHOLDER RULE: NEVER output placeholder, skeleton, or template text such as 'Fetching from system...', " +
-        "'Loading...', 'Retrieving data...', or any similar filler BEFORE you have actual data from the tool. " +
-        "You MUST call the odoo_api tool FIRST, wait for the real result, and ONLY THEN compose your reply using the actual data. " +
-        "If you have no data yet, do NOT write a draft with blanks — call the tool first, then reply. " +
         "OUTPUT FORMAT — applies to ALL responses (interactive AND scheduled/Cron): " +
         "Do NOT use Markdown syntax (no **, no ##, no |---|, no ```). " +
         "Many channels deliver to native mobile apps where Markdown does not render and shows raw symbols. " +
@@ -65,7 +67,8 @@ export function registerOdooApiTool(api: ClawdbotPluginApi) {
         "Example — count sales orders this month: {model:'sale.order', method:'search_count', args:[[['create_date','>=','2026-03-01'],['create_date','<','2026-04-01']]]}. " +
         "Example — list records: {model:'sale.order', method:'search_read', args:[[]], kwargs:{fields:['name','amount_total','state'],limit:10,order:'create_date desc'}}. " +
         "Remember: the user should NEVER see the word 'Odoo' or any internal system identifier in your final reply text. " +
-        "But you MUST still call the odoo_api tool whenever business data is needed — the branding rule only affects your displayed text, not your tool calls.",
+        "But you MUST still call the odoo_api tool whenever business data is needed — the branding rule only affects your displayed text, not your tool calls. " +
+        "FINAL REMINDER — SILENT-UNTIL-DATA: produce ZERO text before the tool call. Call the tool → get data → then write your reply. No exceptions.",
       parameters: Type.Object({
         model: Type.String({ description: "ERP model, e.g. sale.order, purchase.order, account.move, res.partner, product.product, stock.quant, hr.employee, crm.lead" }),
         method: Type.String({ description: "RPC method: search_read (list records), search_count (count), create, write, unlink, name_search" }),
