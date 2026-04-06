@@ -38,9 +38,20 @@ export function registerOdooApiTool(api: ClawdbotPluginApi) {
         "1) TITLE LINE: one emoji + title in CAPS, then a blank line (e.g. '📦 DELIVERY ALERT\\n'). " +
         "2) SUMMARY BLOCK: key metrics on separate lines, each prefixed with an emoji icon " +
         "(e.g. '🔢 Total Orders: 5\\n💰 Total Revenue: ¥12,800\\n📈 vs Yesterday: +15%'). " +
-        "3) DETAIL LIST: number each item; use ' | ' as a field separator within one line " +
-        "(e.g. '1. SO-00123 | Alice | ¥3,200 | Pending\\n2. SO-00124 | Bob | ¥1,500 | Done'). " +
-        "4) FOOTER: a thin divider '──────────' then a status/timestamp line (e.g. '✅ Report generated at 2026-04-05 10:00 CST'). " +
+        "3) DETAIL LIST: number each item on its own card-style block. " +
+        "Put EACH field on a SEPARATE line with an emoji prefix for readability on narrow mobile screens. " +
+        "Separate items with a blank line. Example:\n" +
+        "'1️⃣ SO-00123\n" +
+        "   👤 Alice\n" +
+        "   💰 ¥3,200\n" +
+        "   📌 Pending\n" +
+        "\n" +
+        "2️⃣ SO-00124\n" +
+        "   👤 Bob\n" +
+        "   💰 ¥1,500\n" +
+        "   ✅ Done'. " +
+        "4) FOOTER: a thin divider '──────────' then a short status line. Do NOT include any timestamp or time zone in the footer. " +
+        "Example: '──────────\n✅ Report complete — 5 items found'. " +
         "5) Use ⚠️ for warnings/critical items, ✅ for healthy/done, 📉 for decline, 📈 for growth. " +
         "6) Keep each line under 60 chars when possible for mobile readability. " +
         "Include relevant statuses, amounts, and responsible persons. " +
