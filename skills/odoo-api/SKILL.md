@@ -26,6 +26,15 @@ metadata:
 
 **CURRENCY RULE**: NEVER hardcode or assume a currency symbol (no €, $, ¥, £, etc.). When displaying monetary amounts, include `currency_id` in your `fields` list to read the actual currency from the data. If the data does not contain currency info, show the raw number only (e.g. "12,800" not "€12,800").
 
+**TIMEZONE RULE**: Every `odoo_api` response includes a `_dateContext` object with pre-computed UTC date boundaries derived from the configured business timezone. When you need to filter by "today" or "yesterday", use these values directly — do NOT compute dates yourself and do NOT rely on server local time.
+
+The `_dateContext` fields:
+- `todayStartUtc` / `todayEndUtc` — UTC range for "today" in the business timezone
+- `yesterdayStartUtc` / `yesterdayEndUtc` — UTC range for "yesterday"
+- `todayLocal` / `yesterdayLocal` — local date strings (YYYY-MM-DD) for display
+
+Workflow: call `odoo_api` once (e.g. with an empty domain) to get the `_dateContext`, then use the values in subsequent calls.
+
 **⚠️ SILENT-UNTIL-DATA — #1 RULE**: Do NOT produce ANY text output before you have called `odoo_api` and received real data back. This means: NO title, NO heading, NO greeting, NO "Fetching...", NO "Loading...", NO "Checking...", NO "Retrieving data...", NO skeleton, NO template, NO draft, NO outline — ABSOLUTELY NOTHING before the tool call returns. Your FIRST action must be the tool call. Your FIRST text to the user must contain REAL data from the tool response. If you write even one word before calling the tool, you have violated this rule.
 
 Also call `odoo_api` when a System message contains "DM from" or "message in" related to the ERP channel.
@@ -91,8 +100,13 @@ Also call `odoo_api` when a System message contains "DM from" or "message in" re
 
 ## Date Filtering
 
-- **This month**: `[["create_date", ">=", "YYYY-MM-01"], ["create_date", "<", "YYYY-{MM+1}-01"]]`
-- **Today**: `[["create_date", ">=", "YYYY-MM-DD"], ["create_date", "<", "YYYY-MM-{DD+1}"]]`
+The tool response always includes `_dateContext` with pre-computed UTC boundaries. Use them directly:
+
+- **Today**: `[["create_date", ">=", "<todayStartUtc>"], ["create_date", "<", "<todayEndUtc>"]]`
+- **Yesterday**: `[["create_date", ">=", "<yesterdayStartUtc>"], ["create_date", "<", "<yesterdayEndUtc>"]]`
+- **This month**: `[["create_date", ">=", "YYYY-MM-01 00:00:00"], ["create_date", "<", "YYYY-{MM+1}-01 00:00:00"]]`
+
+Do NOT compute date boundaries yourself. Do NOT use server local time.
 
 ## Rules
 
@@ -100,3 +114,4 @@ Also call `odoo_api` when a System message contains "DM from" or "message in" re
 - Always specify `fields` in kwargs. Use `limit` (10–20) and `order`.
 - If `odoo_api` returns an error, do NOT expose the raw error. Reply with a friendly fallback: "Unable to retrieve data at this time."
 - NEVER mention "Odoo" or any internal system name in your replies to the user.
+- TIMEZONE: always use `_dateContext` values from the tool response for date filters. Never compute dates from scratch.

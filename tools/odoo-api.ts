@@ -2,7 +2,7 @@ import type { ClawdbotPluginApi } from "openclaw/plugin-sdk";
 import { Type } from "@sinclair/typebox";
 
 import { odooRpc } from "../rpc.ts";
-import { getCfg } from "../config.ts";
+import { getCfg, getTimezone, getDateContext } from "../config.ts";
 
 export function registerOdooApiTool(api: ClawdbotPluginApi) {
   const log = api.logger;
@@ -64,7 +64,11 @@ export function registerOdooApiTool(api: ClawdbotPluginApi) {
         "5) Use ⚠️ for warnings/critical items, ✅ for healthy/done, 📉 for decline, 📈 for growth. " +
         "6) Keep each line under 60 chars when possible for mobile readability. " +
         "Include relevant statuses, amounts, and responsible persons. " +
-        "Example — count sales orders this month: {model:'sale.order', method:'search_count', args:[[['create_date','>=','2026-03-01'],['create_date','<','2026-04-01']]]}. " +
+        "TIMEZONE RULE: Every tool response includes a '_dateContext' object with pre-computed UTC date boundaries " +
+        "(todayStartUtc, todayEndUtc, yesterdayStartUtc, yesterdayEndUtc) already converted from the business timezone. " +
+        "When filtering by 'today' or 'yesterday', ALWAYS use these pre-computed values directly in your domain filters. " +
+        "Do NOT compute dates yourself. Do NOT use server local time. " +
+        "Example — today's sales: {model:'sale.order', method:'search_count', args:[[['create_date','>=',_dateContext.todayStartUtc],['create_date','<',_dateContext.todayEndUtc]]]}. " +
         "Example — list records: {model:'sale.order', method:'search_read', args:[[]], kwargs:{fields:['name','amount_total','state'],limit:10,order:'create_date desc'}}. " +
         "Remember: the user should NEVER see the word 'Odoo' or any internal system identifier in your final reply text. " +
         "But you MUST still call the odoo_api tool whenever business data is needed — the branding rule only affects your displayed text, not your tool calls. " +
@@ -105,9 +109,14 @@ export function registerOdooApiTool(api: ClawdbotPluginApi) {
 
 
         // odooRpc already retries transient network errors internally
+        const tz = getTimezone(api);
+        const dateCtx = getDateContext(tz);
+
         try {
           const result = await odooRpc(cfg, model, method, args, kwargs);
-          const resultStr = JSON.stringify(result, null, 2);
+          // Inject date context so AI can reference pre-computed boundaries
+          const payload = { _dateContext: dateCtx, data: result };
+          const resultStr = JSON.stringify(payload, null, 2);
           return {
             content: [{ type: "text" as const, text: resultStr }],
             details: {},
