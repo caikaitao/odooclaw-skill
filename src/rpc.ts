@@ -22,8 +22,10 @@ export interface OdooConfig {
 
   /* ── Common ── */
   botPartnerId: number;
-  /** Reserved for future webhook-based inbound. */
-  webhookSecret?: string;
+  /** Shared x-api-key used for Odoo webhook auth. */
+  webhookApiKey?: string;
+  /** Odoo webhook URL for posting bot replies back into Discuss. */
+  webhookUrl?: string;
   /** Channel provider id — defaults to "discuss" when omitted. */
   provider?: string;
 }
@@ -36,7 +38,8 @@ export interface RawOdooConfig {
   password?: string;
   apiKey?: string;
   botPartnerId?: number;
-  webhookSecret?: string;
+  webhookApiKey?: string;
+  webhookUrl?: string;
   provider?: string;
 }
 
