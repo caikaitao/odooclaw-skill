@@ -1,5 +1,5 @@
 {
-  "name": "odoo-tools",
+  "name": "odooClaw",
   "version": "2.0.0",
   "description": "Odoo ERP API Tools + AI Skill + Channel",
   "dependencies": {
@@ -7,7 +7,7 @@
   },
   "openclaw": {
     "extensions": [
-      "./index.ts"
+      "./src/index.ts"
     ]
   }
 }
