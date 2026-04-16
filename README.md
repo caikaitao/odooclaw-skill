@@ -38,17 +38,14 @@ OdooClaw 是一个面向 OpenClaw 的 Odoo 插件包，把 **tool、skill、chan
         "url": "https://your-odoo.com",
         "db": "mydb",
         "uid": 2,
-        "password": "your-password",
+        "apiKey": "your-api-key",
         "botPartnerId": 3,
-        "webhookUrl": "https://your-odoo.com/your-claw/webhook",
-        "webhookApiKey": "your-shared-api-key"
+        "webhookUrl": "https://your-odoo.com/your-claw/webhook"
       }
     }
   }
 }
 ```
-
-如果你使用 API Key，把 `password` 换成 `apiKey` 即可。
 
 ## 行为
 

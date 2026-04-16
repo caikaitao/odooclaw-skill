@@ -204,7 +204,7 @@ export async function handleOdooWebhookRequest(api: ClawdbotPluginApi, req: Inco
 
   const apiKeyHeader = req.headers["x-api-key"];
   const apiKey = typeof apiKeyHeader === "string" ? apiKeyHeader : Array.isArray(apiKeyHeader) ? apiKeyHeader[0] : "";
-  const expectedApiKey = cfg.webhookApiKey?.trim() || "";
+  const expectedApiKey = cfg.apiKey?.trim() || "";
   if (!expectedApiKey || apiKey.trim() !== expectedApiKey) {
     res.statusCode = 401;
     res.end("Unauthorized");

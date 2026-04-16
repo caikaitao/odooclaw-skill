@@ -1,8 +1,8 @@
 /**
  * Shared Odoo RPC layer for odoo-tools plugin.
  *
- * Uses **Legacy JSON-RPC** authentication — `db` + `uid` + (`password` | `apiKey`) via `/jsonrpc` endpoint.
- * When `apiKey` is provided it is used as the password substitute (Odoo 17+ API Key feature).
+ * Uses **Legacy JSON-RPC** authentication — `db` + `uid` + `apiKey` via `/jsonrpc` endpoint.
+ * The apiKey is used as the password substitute (Odoo 17+ API Key feature).
  */
 
 /* ── Validated config ── */
@@ -15,15 +15,11 @@ export interface OdooConfig {
   db: string;
   /** Odoo user ID. */
   uid: number;
-  /** Odoo user password. */
-  password?: string;
-  /** Odoo API Key — used as password substitute when provided. */
+  /** Odoo API Key — used as password substitute. */
   apiKey?: string;
 
   /* ── Common ── */
   botPartnerId: number;
-  /** Shared x-api-key used for Odoo webhook auth. */
-  webhookApiKey?: string;
   /** Odoo webhook URL for posting bot replies back into Discuss. */
   webhookUrl?: string;
   /** Channel provider id — defaults to "discuss" when omitted. */
@@ -35,10 +31,8 @@ export interface RawOdooConfig {
   url?: string;
   db?: string;
   uid?: number;
-  password?: string;
   apiKey?: string;
   botPartnerId?: number;
-  webhookApiKey?: string;
   webhookUrl?: string;
   provider?: string;
 }
@@ -51,7 +45,7 @@ export type MaybeWrappedOdooConfig = RawOdooConfig & { odoo?: RawOdooConfig };
 export function validateAuth(cfg: OdooConfig): { ok: true } | { ok: false; error: string } {
   if (!cfg.db) return { ok: false, error: "db is required for authentication" };
   if (cfg.uid == null) return { ok: false, error: "uid is required for authentication" };
-  if (!cfg.password && !cfg.apiKey) return { ok: false, error: "password or apiKey is required for authentication" };
+  if (!cfg.apiKey) return { ok: false, error: "apiKey is required for authentication" };
   return { ok: true };
 }
 
@@ -95,7 +89,7 @@ function isTransientError(msg: string): boolean {
   return TRANSIENT_PATTERNS.some((p) => lower.includes(p.toLowerCase()));
 }
 
-/* ── Legacy JSON-RPC (`/jsonrpc` — db + uid + password/apiKey) ── */
+/* ── Legacy JSON-RPC (`/jsonrpc` — db + uid + apiKey) ── */
 
 async function odooRpcLegacy(
   cfg: OdooConfig,
@@ -112,7 +106,7 @@ async function odooRpcLegacy(
     params: {
       service: "object",
       method: "execute_kw",
-      args: [cfg.db, cfg.uid, cfg.apiKey || cfg.password, model, method, args, kwargs],
+      args: [cfg.db, cfg.uid, cfg.apiKey, model, method, args, kwargs],
     },
   });
 
@@ -149,7 +143,7 @@ async function odooRpcLegacy(
 /**
  * Call an Odoo model method via Legacy JSON-RPC (`/jsonrpc`).
  *
- * Uses `db` + `uid` + (`password` or `apiKey`) for authentication.
+ * Uses `db` + `uid` + `apiKey` for authentication.
  * Automatically retries on transient network errors (up to RPC_MAX_RETRIES times).
  */
 export async function odooRpc(

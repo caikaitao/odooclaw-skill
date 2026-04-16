@@ -48,8 +48,8 @@ export const discussProvider: ChannelProvider = {
       "Content-Type": "application/json",
       "X-Odoo-Database": cfg.db,
     };
-    if (cfg.webhookApiKey) {
-      headers["x-api-key"] = cfg.webhookApiKey;
+    if (cfg.apiKey) {
+      headers["Authorization"] = `Bearer ${cfg.apiKey}`;
     }
 
     const resp = await fetch(webhookUrl, {
