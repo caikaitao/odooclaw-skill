@@ -52,7 +52,7 @@ export function registerOdooApiTool(api: ClawdbotPluginApi) {
           return {
             content: [{ type: "text" as const, text: JSON.stringify({
               success: false,
-              error: "Odoo not configured. Check channels.odooClaw-channel config (url, db, uid, password/apiKey, botPartnerId).",
+              error: "Odoo not configured. Check channels.odooClaw-channel config (url, db, uid, apiKey, botPartnerId).",
             }) }],
             details: {},
           };
