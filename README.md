@@ -40,7 +40,8 @@ OdooClaw 是一个面向 OpenClaw 的 Odoo 插件包，把 **tool、skill、chan
         "uid": 2,
         "apiKey": "your-api-key",
         "botPartnerId": 3,
-        "webhookUrl": "https://your-odoo.com/your-claw/webhook"
+        "webhookUrl": "https://your-odoo.com/odoo/webhook",
+        "allowedSourceIps": ["10.0.0.0/8", "172.16.0.1"]
       }
     }
   }
@@ -49,6 +50,10 @@ OdooClaw 是一个面向 OpenClaw 的 Odoo 插件包，把 **tool、skill、chan
 
 ## 行为
 
+- `enabled` 默认为 `true`；设为 `false` 时不会注册 tool、channel、service 和 webhook 路由
+- `allowedSourceIps` 可选；为空时允许所有来源 IP
+- `allowedSourceIps` 支持单个 IP 和 CIDR，例如 `10.0.0.5`、`192.168.1.0/24`
+- 白名单判断基于 webhook 请求的 `remoteAddress`
 - 私聊消息默认进入业务问答链路
 - 群聊只有在 @mention Bot 时才进入链路
 - Odoo 回复会走富文本输出，支持 HTML / emoji / 表格
@@ -67,5 +72,5 @@ OdooClaw 是一个面向 OpenClaw 的 Odoo 插件包，把 **tool、skill、chan
 
 - 插件未加载：确认扩展目录里是整个仓库，而不是单个文件
 - `odooClaw-skill` 不显示：确认 OpenClaw 读到的是当前这份扩展目录
-- Odoo 收不到回复：检查 webhook API key 和 `/your-claw/webhook`
+- Odoo 收不到回复：检查 webhook API key 和 `/odoo/webhook`
 - 回复内容没渲染成富文本：确认发送时走的是 HTML
