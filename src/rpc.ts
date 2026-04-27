@@ -24,6 +24,10 @@ export interface OdooConfig {
   webhookUrl?: string;
   /** Channel provider id — defaults to "discuss" when omitted. */
   provider?: string;
+  /** Whether the plugin should register its integrations. Defaults to true. */
+  enabled: boolean;
+  /** Allowed source IPs/CIDRs for webhook ingress. Empty means allow all. */
+  allowedSourceIps: string[];
 }
 
 /** Raw config shape before validation — all fields optional. */
@@ -35,6 +39,8 @@ export interface RawOdooConfig {
   botPartnerId?: number;
   webhookUrl?: string;
   provider?: string;
+  enabled?: boolean;
+  allowedSourceIps?: string[];
 }
 
 export type MaybeWrappedOdooConfig = RawOdooConfig & { odoo?: RawOdooConfig };

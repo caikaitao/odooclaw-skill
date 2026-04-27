@@ -7,6 +7,7 @@ import { getCfg } from "../config.ts";
 import { getOdooRuntime } from "../runtime.ts";
 import { formatOdooRichText, cleanOdooBody } from "../formatting/rich-text.ts";
 import { getProvider } from "./providers/registry.ts";
+import { resolveClientIp, matchesAllowedIp } from "../ip.ts";
 
 /* ── Tracking sent message IDs for reliable bot-echo filtering ── */
 
@@ -199,6 +200,14 @@ export async function handleOdooWebhookRequest(api: ClawdbotPluginApi, req: Inco
   if (!cfg) {
     res.statusCode = 503;
     res.end("Odoo not configured");
+    return true;
+  }
+
+  const clientIp = resolveClientIp(req);
+  if (cfg.allowedSourceIps.length > 0 && (!clientIp || !matchesAllowedIp(clientIp, cfg.allowedSourceIps))) {
+    res.statusCode = 403;
+    res.end("Forbidden");
+    api.logger?.warn(`[odooClaw] webhook rejected from IP: ${clientIp || "unknown"}`);
     return true;
   }
 

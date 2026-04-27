@@ -1,6 +1,6 @@
 import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
 
-import { getCfg } from "./config.ts";
+import { getCfg, isOdooClawEnabled } from "./config.ts";
 import { handleOdooWebhookRequest, registerWebhookService, odooClawChannel } from "./channel/index.ts";
 import { getProvider } from "./channel/providers/registry.ts";
 import { registerOdooApiTool } from "./tools/odoo-api.ts";
@@ -14,6 +14,11 @@ const plugin = {
   configSchema: emptyPluginConfigSchema(),
 
   register(api: any) {
+    if (!isOdooClawEnabled(api)) {
+      api.logger?.info("[odooClaw] plugin disabled by config");
+      return;
+    }
+
     setOdooRuntime(api.runtime);
 
     if (api.logger) {
