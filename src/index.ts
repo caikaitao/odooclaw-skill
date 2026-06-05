@@ -1,5 +1,4 @@
-import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
-
+import { definePluginEntry, type OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
 import { getCfg, isOdooClawEnabled } from "./config.ts";
 import { handleOdooWebhookRequest, registerWebhookService, odooClawChannel } from "./channel/index.ts";
 import { getProvider } from "./channel/providers/registry.ts";
@@ -7,13 +6,12 @@ import { registerOdooApiTool } from "./tools/odoo-api.ts";
 import { setOdooRuntime } from "./runtime.ts";
 import { setRpcLogger } from "./rpc.ts";
 
-const plugin = {
+export default definePluginEntry({
   id: "odooClaw",
   name: "OdooClaw",
   description: "Odoo ERP API tool with AI skill and configurable channel integration (Discuss, Helpdesk, etc.)",
-  configSchema: emptyPluginConfigSchema(),
 
-  register(api: any) {
+  register(api: OpenClawPluginApi) {
     if (!isOdooClawEnabled(api)) {
       api.logger?.info("[odooClaw] plugin disabled by config");
       return;
@@ -48,6 +46,4 @@ const plugin = {
       );
     }
   },
-};
-
-export default plugin;
+});

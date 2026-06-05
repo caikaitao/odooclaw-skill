@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Build output (consumers run `npm run build` after clone; we don't ship it)
+dist/
+
+# Lock file — this plugin's deps are wide-range; consumers resolve fresh
+package-lock.json
+
+# Local / IDE
+.claude/
+.vscode/
+.idea/
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Env files (in case anyone adds one later)
+.env
+.env.local
+.env.*.local

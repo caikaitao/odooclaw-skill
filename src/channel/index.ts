@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { ClawdbotPluginApi } from "openclaw/plugin-sdk";
+import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 
 import type { OdooConfig } from "../rpc.ts";
 import type { ChannelProvider, InboundMessage, OdooWebhookEvent, ResolvedChannel, WebhookAttachment } from "./providers/types.ts";
@@ -53,7 +53,7 @@ function isSystemDiagnostic(text: string): boolean {
 
 /* ── Saved plugin API reference for outbound ── */
 
-let savedApi: ClawdbotPluginApi | null = null;
+let savedApi: OpenClawPluginApi | null = null;
 
 /* ── Channel plugin definition ── */
 
@@ -188,7 +188,7 @@ export const odooClawChannel = {
   },
 };
 
-export async function handleOdooWebhookRequest(api: ClawdbotPluginApi, req: IncomingMessage, res: ServerResponse) {
+export async function handleOdooWebhookRequest(api: OpenClawPluginApi, req: IncomingMessage, res: ServerResponse) {
   if ((req.method || "").toUpperCase() !== "POST") {
     res.statusCode = 405;
     res.setHeader("Allow", "POST");
@@ -263,7 +263,7 @@ export async function handleOdooWebhookRequest(api: ClawdbotPluginApi, req: Inco
 /* ── Inbound: route to agent session ── */
 
 async function handleInboundMessage(
-  api: ClawdbotPluginApi,
+  api: OpenClawPluginApi,
   cfg: OdooConfig,
   msg: InboundMessage,
   channel: ResolvedChannel,
@@ -281,10 +281,9 @@ async function handleInboundMessage(
     channel: "odooClaw-channel",
     accountId: "default",
     peer: {
-      kind: isPrivateChat ? "dm" : "group",
+      kind: isPrivateChat ? "direct" : "group",
       id: peerId,
     },
-    messageText: isPrivateChat ? cleanOdooBody(msg.body) : null,
   });
   const agentId = resolvedRoute?.agentId || "main";
   const accountId = resolvedRoute?.accountId || "default";
@@ -408,7 +407,7 @@ function resolveWebhookChannel(event: OdooWebhookEvent): ResolvedChannel {
   };
 }
 
-export async function handleWebhookEvent(api: ClawdbotPluginApi, event: OdooWebhookEvent) {
+export async function handleWebhookEvent(api: OpenClawPluginApi, event: OdooWebhookEvent) {
   const cfg = getCfg(api);
   if (!cfg) {
     throw new Error("Odoo not configured");
@@ -438,7 +437,7 @@ export async function handleWebhookEvent(api: ClawdbotPluginApi, event: OdooWebh
   await handleInboundMessage(api, cfg, msg, channel, provider);
 }
 
-export function registerWebhookService(api: ClawdbotPluginApi) {
+export function registerWebhookService(api: OpenClawPluginApi) {
   savedApi = api;
 
   api.registerService({

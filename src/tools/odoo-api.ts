@@ -1,10 +1,10 @@
-import type { ClawdbotPluginApi } from "openclaw/plugin-sdk";
+import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { Type } from "@sinclair/typebox";
 
 import { odooRpc } from "../rpc.ts";
 import { getCfg } from "../config.ts";
 
-export function registerOdooApiTool(api: ClawdbotPluginApi) {
+export function registerOdooApiTool(api: OpenClawPluginApi) {
   const log = api.logger;
 
   if (!api.registerTool) {

@@ -1,13 +1,31 @@
 {
-  "name": "odooClaw",
+  "name": "@openclaw/odooclaw",
   "version": "2.0.0",
+  "type": "module",
   "description": "Odoo ERP API Tools + AI Skill + Channel",
-  "dependencies": {
-    "@sinclair/typebox": "^0.34.0"
-  },
   "openclaw": {
-    "extensions": [
-      "./src/index.ts"
-    ]
+    "extensions": ["./src/index.ts"],
+    "runtimeExtensions": ["./dist/index.js"],
+    "compat": {
+      "pluginApi": ">=2026.3.24",
+      "minGatewayVersion": "2026.3.24"
+    },
+    "build": {
+      "openclawVersion": "2026.5.6",
+      "pluginSdkVersion": "2026.5.6"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "prepare": "tsc"
+  },
+  "dependencies": {
+    "@sinclair/typebox": "^0.34.0",
+    "openclaw": ">=2026.3.24"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
   }
 }
