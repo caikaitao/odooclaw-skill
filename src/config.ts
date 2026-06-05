@@ -1,4 +1,4 @@
-import type { ClawdbotPluginApi } from "openclaw/plugin-sdk";
+import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 
 import type { OdooConfig, MaybeWrappedOdooConfig } from "./rpc.ts";
 
@@ -17,7 +17,7 @@ import type { OdooConfig, MaybeWrappedOdooConfig } from "./rpc.ts";
  *
  * Returns `null` if the config is missing or incomplete.
  */
-export function isOdooClawEnabled(api: ClawdbotPluginApi): boolean {
+export function isOdooClawEnabled(api: OpenClawPluginApi): boolean {
   const raw = api.config?.channels?.["odooClaw-channel"] as MaybeWrappedOdooConfig | undefined;
   const cfgFromPlugin = raw?.odoo ? raw.odoo : (raw || {});
   return process.env.ODOO_ENABLED
@@ -25,7 +25,7 @@ export function isOdooClawEnabled(api: ClawdbotPluginApi): boolean {
     : cfgFromPlugin.enabled !== false;
 }
 
-export function getCfg(api: ClawdbotPluginApi): OdooConfig | null {
+export function getCfg(api: OpenClawPluginApi): OdooConfig | null {
   const raw = api.config?.channels?.["odooClaw-channel"] as MaybeWrappedOdooConfig | undefined;
   const cfgFromPlugin = raw?.odoo ? raw.odoo : (raw || {});
 

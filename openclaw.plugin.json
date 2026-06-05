@@ -6,12 +6,56 @@
   "description": "通用 Odoo ERP API 工具 + AI Skill + 可配置消息渠道（Discuss、Helpdesk 等），支持 Legacy JSON-RPC 和 API Key 双认证",
   "skills": ["./src/skills"],
   "channels": ["odooClaw-channel"],
+  "contracts": {
+    "tools": ["odooClaw-tool"]
+  },
+  "activation": {
+    "onStartup": true
+  },
+  "channelConfigs": {
+    "odooClaw-channel": {
+      "label": "OdooClaw Channel",
+      "description": "Odoo Discuss / Helpdesk / Live Chat 渠道；通过 webhook 收消息、JSON-RPC 调 Odoo 回消息。",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "odoo": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "enabled": { "type": "boolean", "description": "是否启用该 channel。默认 true；设为 false 时不注册 tool、channel、service 和 webhook 路由。" },
+              "url": { "type": "string", "description": "Odoo 实例地址，例如 https://your-odoo.com" },
+              "db": { "type": "string", "description": "Odoo 数据库名" },
+              "uid": { "type": "number", "description": "Odoo 用户 ID" },
+              "apiKey": { "type": "string", "description": "Odoo API Key（Odoo 17+ 生成的密钥，作为 password 替代品）" },
+              "botPartnerId": { "type": "number", "description": "Bot 的 res.partner ID" },
+              "webhookUrl": { "type": "string", "description": "可选：覆盖 Odoo webhook URL。默认等于 url + '/odoo/webhook'。" },
+              "provider": { "type": "string", "description": "Channel provider，默认 discuss；可选 helpdesk 等" },
+              "allowedSourceIps": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "可选：webhook 来源 IP 白名单（支持单 IP 和 CIDR）。为空时允许所有来源。"
+              }
+            }
+          }
+        }
+      },
+      "uiHints": {
+        "odoo.url": { "label": "Odoo URL", "placeholder": "https://your-odoo.com" },
+        "odoo.db": { "label": "Database" },
+        "odoo.uid": { "label": "User ID" },
+        "odoo.apiKey": { "label": "API Key", "sensitive": true },
+        "odoo.botPartnerId": { "label": "Bot partner ID" },
+        "odoo.webhookUrl": { "label": "Webhook URL" },
+        "odoo.provider": { "label": "Provider" },
+        "odoo.allowedSourceIps": { "label": "Allowed source IPs (CIDR)" }
+      }
+    }
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
     "properties": {}
-  },
-  "openclaw": {
-    "extensions": ["./src/index.ts"]
   }
 }
